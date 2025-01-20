@@ -6,7 +6,7 @@ import fw_jsbgym
 import pandas as pd
 import wandb
 from math import pi
-from fw_flightcontrol.agents.sac import Actor_SAC
+from fw_flightcontrol.agents import sac_norm, sac
 from fw_flightcontrol.agents.ppo import Agent_PPO
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
 from fw_flightcontrol.utils.gym_utils import MyNormalizeObservation, NormalizeObservationEnvMinMax
@@ -88,7 +88,7 @@ def periodic_eval_AC(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
             while not done:
                 env.set_target_state(ref_ep)
                 with torch.no_grad():
-                    if isinstance(agent, Actor_SAC):
+                    if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
                         action = agent.get_action(obs)[2].squeeze_(0).detach().cpu().numpy()
                     elif isinstance(agent, Agent_PPO):
                         action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
@@ -116,7 +116,7 @@ def periodic_eval_AC(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
     # computing the rmse of the roll and pitch angles across all episodes for each difficulty level
     obs_hist_size = cfg_mdp.obs_hist_size
 
-    if isinstance(agent, Actor_SAC):
+    if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
     # Check if dif_obs has an inhomogeneous shape and pad the dif_obs array with np.pi (if episode truncated fill the errors with np.pi)
     # only happens with SAC
     # (copilot generated snippet careful)
@@ -166,7 +166,7 @@ def periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
         while not done:
             env.set_target_state(np.array(ref_ep))
             with torch.no_grad():
-                if isinstance(agent, Actor_SAC):
+                if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
                     action = agent.get_action(obs)[2].squeeze_(0).detach().cpu().numpy()
                 elif isinstance(agent, Agent_PPO):
                     action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
@@ -304,7 +304,7 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
 
     for step in range(4000):
         e_env.unwrapped.set_target_state(target)
-        if isinstance(agent, Actor_SAC):
+        if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
             action = agent.get_action(e_obs)[2].squeeze_().detach().cpu().numpy()
         elif isinstance(agent, Agent_PPO):
             action = agent.get_action_and_value(e_obs)[1][0].detach().cpu().numpy()

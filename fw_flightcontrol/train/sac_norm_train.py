@@ -12,7 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from fw_flightcontrol.utils import train_utils
-from fw_flightcontrol.agents.sac_norm_2 import SACAgent
+from fw_flightcontrol.agents.sac_norm import Actor_SAC, SoftQNetwork_SAC
 
 
 
@@ -82,7 +82,15 @@ def train(cfg: DictConfig):
     print("Single Env Observation Space Shape = ", envs.single_observation_space.shape)
     unwr_envs = envs.envs[0].unwrapped
 
-    sac_agent = SACAgent(envs, cfg_sac)
+    actor = Actor_SAC(envs).to(device)
+    qf1 = SoftQNetwork_SAC(envs).to(device)
+    qf2 = SoftQNetwork_SAC(envs).to(device)
+    qf1_target = SoftQNetwork_SAC(envs).to(device)
+    qf2_target = SoftQNetwork_SAC(envs).to(device)
+    qf1_target.load_state_dict(qf1.state_dict())
+    qf2_target.load_state_dict(qf2.state_dict())
+    q_optimizer = optim.Adam(list(qf1.parameters()) + list(qf2.parameters()), lr=cfg_sac.q_lr)
+    actor_optimizer = optim.Adam(list(actor.parameters()), lr=cfg_sac.policy_lr)
 
     # Automatic entropy tuning
     if cfg_sac.autotune:
@@ -129,7 +137,7 @@ def train(cfg: DictConfig):
         if global_step < cfg_sac.learning_starts:
             actions = np.array([envs.single_action_space.sample() for _ in range(envs.num_envs)])
         else:
-            actions, _, _ = sac_agent.get_action(torch.Tensor(obs).to(device))
+            actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
             actions = actions.detach().cpu().numpy()
 
         # TRY NOT TO MODIFY: execute the game and log data.
@@ -162,50 +170,47 @@ def train(cfg: DictConfig):
         if global_step > cfg_sac.learning_starts:
             data = rb.sample(cfg_sac.batch_size)
             with torch.no_grad():
-                next_state_actions, next_state_log_pi, _ = sac_agent.get_action(data.next_observations)
-                qfs_next_target = sac_agent.get_targetq_value(data.next_observations, next_state_actions)
-                qf1_next_target = qfs_next_target[0]
-                qf2_next_target = qfs_next_target[1]
+                next_state_actions, next_state_log_pi, _ = actor.get_action(data.next_observations)
+                qf1_next_target = qf1_target(data.next_observations, next_state_actions)
+                qf2_next_target = qf2_target(data.next_observations, next_state_actions)
                 min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - alpha * next_state_log_pi
                 next_q_value = data.rewards.flatten() + (1 - data.dones.flatten()) * cfg_sac.gamma * (min_qf_next_target).view(-1)
 
-            qfs_a_values = sac_agent.get_q_value(data.observations, data.actions)
-            qf1_a_values = qfs_a_values[0].view(-1)
-            qf2_a_values = qfs_a_values[1].view(-1)
+            qf1_a_values = qf1(data.observations, data.actions).view(-1)
+            qf2_a_values = qf2(data.observations, data.actions).view(-1)
             qf1_loss = F.mse_loss(qf1_a_values, next_q_value)
             qf2_loss = F.mse_loss(qf2_a_values, next_q_value)
             qf_loss = qf1_loss + qf2_loss
 
             # optimize the model
-            sac_agent.q_optimizer.zero_grad()
+            q_optimizer.zero_grad()
             qf_loss.backward()
-            sac_agent.q_optimizer.step()
+            q_optimizer.step()
 
             if global_step % cfg_sac.policy_frequency == 0:  # TD 3 Delayed update support
                 for _ in range(
                     cfg_sac.policy_frequency
                 ):  # compensate for the delay by doing 'actor_update_interval' instead of 1
                     # SAC policy loss
-                    pi, log_pi, _ = sac_agent.actor.get_action(data.observations)
-                    qfs_pi = sac_agent.get_q_value(data.observations, pi)
-                    qf1_pi = qfs_pi[0]
-                    qf2_pi = qfs_pi[1]
+                    pi, log_pi, _ = actor.get_action(data.observations)
+                    qf1_pi = qf1(data.observations, pi)
+                    qf2_pi = qf2(data.observations, pi)
                     min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
                     # CAPS loss ts
-                    act_mean = sac_agent.get_action(data.observations)[2]
-                    next_act_mean = sac_agent.get_action(data.next_observations)[2]
+                    act_mean = actor.get_action(data.observations)[2]
+                    next_act_mean = actor.get_action(data.next_observations)[2]
                     ts_loss = F.mse_loss(act_mean, next_act_mean)
 
                     actor_loss = ((alpha * log_pi) - min_qf_pi).mean() + cfg_sac.ts_coef * ts_loss
 
-                    sac_agent.actor_optimizer.zero_grad()
+                    actor_optimizer.zero_grad()
                     actor_loss.backward()
-                    sac_agent.actor_optimizer.step()
+                    actor_optimizer.step()
 
                     if cfg_sac.autotune:
                         with torch.no_grad():
-                            _, log_pi, _ = sac_agent.get_action(data.observations)
+                            _, log_pi, _ = actor.get_action(data.observations)
                         alpha_loss = (-log_alpha.exp() * (log_pi + target_entropy)).mean()
 
                         a_optimizer.zero_grad()
@@ -215,7 +220,7 @@ def train(cfg: DictConfig):
 
             # update the target networks
             if global_step % cfg_sac.target_network_frequency == 0:
-                for param, target_param in zip(sac_agent.qf1.parameters(), sac_agent.qf1.parameters()):
+                for param, target_param in zip(qf1.parameters(), qf1_target.parameters()):
                     target_param.data.copy_(cfg_sac.tau * param.data + (1 - cfg_sac.tau) * target_param.data)
                 for param, target_param in zip(qf2.parameters(), qf2_target.parameters()):
                     target_param.data.copy_(cfg_sac.tau * param.data + (1 - cfg_sac.tau) * target_param.data)

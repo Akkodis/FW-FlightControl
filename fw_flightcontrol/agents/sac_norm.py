@@ -4,19 +4,41 @@ import torch.nn.functional as F
 import numpy as np
 import gymnasium as gym
 
+
+def weight_init(m):
+    """Custom weight initialization for TD-MPC2."""
+    if isinstance(m, nn.Linear):
+        nn.init.trunc_normal_(m.weight, std=0.02)
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+
+
+def zero_(params):
+    """Initialize parameters to zero."""
+    for p in params:
+        p.data.fill_(0)
+
 # ALGO LOGIC: initialize agent here:
 class SoftQNetwork_SAC(nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, dropout_p=0.01):
         super().__init__()
         self.fc1 = nn.Linear(np.array(env.single_observation_space.shape).prod() + np.prod(env.single_action_space.shape), 256)
+        self.dropout = nn.Dropout(dropout_p, inplace=True) if dropout_p else None
         self.lnorm1 = nn.LayerNorm(256)
         self.fc2 = nn.Linear(256, 256)
         self.lnorm2 = nn.LayerNorm(256)
         self.fc3 = nn.Linear(256, 1)
 
+        # initialize weights
+        self.apply(weight_init)
+        zero_([self.fc3.weight, self.fc3.bias])
+
     def forward(self, x, a):
         x = torch.cat([x, a], 1)
-        x = F.mish(self.lnorm1(self.fc1(x)))
+        x = self.fc1(x)
+        if self.dropout:
+            x = self.dropout(x)
+        x = F.mish(self.lnorm1(x))
         x = F.mish(self.lnorm2(self.fc2(x)))
         x = self.fc3(x)
         return x
@@ -43,7 +65,9 @@ class Actor_SAC(nn.Module):
             self.action_space_low = np.expand_dims(env.action_space.low, axis=0)
 
         self.fc1 = nn.Linear(np.array(self.single_obs_space.shape).prod(), 256)
+        self.lnorm1 = nn.LayerNorm(256)
         self.fc2 = nn.Linear(256, 256)
+        self.lnorm2 = nn.LayerNorm(256)
         self.fc_mean = nn.Linear(256, np.prod(self.single_action_space.shape))
         self.fc_logstd = nn.Linear(256, np.prod(self.single_action_space.shape))
         # action rescaling
@@ -55,8 +79,8 @@ class Actor_SAC(nn.Module):
         )
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = F.mish(self.lnorm1(self.fc1(x)))
+        x = F.mish(self.lnorm2(self.fc2(x)))
         mean = self.fc_mean(x)
         log_std = self.fc_logstd(x)
         log_std = torch.tanh(log_std)
