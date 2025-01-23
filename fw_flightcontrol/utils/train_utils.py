@@ -6,10 +6,8 @@ import fw_jsbgym
 import pandas as pd
 import wandb
 from math import pi
-from fw_flightcontrol.agents import sac_norm, sac
-from fw_flightcontrol.agents.ppo import Agent_PPO
+from fw_flightcontrol.agents import sac_norm, sac, ppo_norm, ppo
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
-from fw_flightcontrol.utils.gym_utils import MyNormalizeObservation, NormalizeObservationEnvMinMax
 from omegaconf import DictConfig, OmegaConf
 
 # Global variables
@@ -90,7 +88,7 @@ def periodic_eval_AC(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
                 with torch.no_grad():
                     if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
                         action = agent.get_action(obs)[2].squeeze_(0).detach().cpu().numpy()
-                    elif isinstance(agent, Agent_PPO):
+                    elif isinstance(agent, ppo.Agent_PPO) or isinstance(agent, ppo_norm.Agent_PPO):
                         action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
                     elif isinstance(agent, TDMPC2):
                         action = agent.act(obs.squeeze(0), t0=t==0, eval_mode=True)
@@ -168,7 +166,7 @@ def periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
             with torch.no_grad():
                 if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
                     action = agent.get_action(obs)[2].squeeze_(0).detach().cpu().numpy()
-                elif isinstance(agent, Agent_PPO):
+                elif isinstance(agent, ppo.Agent_PPO) or isinstance(agent, ppo_norm.Agent_PPO):
                     action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
                 elif isinstance(agent, TDMPC2):
                     action = agent.act(obs.squeeze(0), t0=t==0, eval_mode=True)
@@ -306,7 +304,7 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
         e_env.unwrapped.set_target_state(target)
         if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
             action = agent.get_action(e_obs)[2].squeeze_().detach().cpu().numpy()
-        elif isinstance(agent, Agent_PPO):
+        elif isinstance(agent, ppo.Agent_PPO) or isinstance(agent, ppo_norm.Agent_PPO):
             action = agent.get_action_and_value(e_obs)[1][0].detach().cpu().numpy()
         elif isinstance(agent, TDMPC2):
             action = agent.act(e_obs.squeeze(0), t0=step==0, eval_mode=True)
