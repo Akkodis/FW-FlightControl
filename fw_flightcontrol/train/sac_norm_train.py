@@ -137,7 +137,7 @@ def train(cfg: DictConfig):
         if global_step < cfg_sac.learning_starts:
             actions = np.array([envs.single_action_space.sample() for _ in range(envs.num_envs)])
         else:
-            actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
+            actions, _, _, _ = actor.get_action(torch.Tensor(obs).to(device))
             actions = actions.detach().cpu().numpy()
 
         # TRY NOT TO MODIFY: execute the game and log data.
@@ -170,7 +170,7 @@ def train(cfg: DictConfig):
         if global_step > cfg_sac.learning_starts:
             data = rb.sample(cfg_sac.batch_size)
             with torch.no_grad():
-                next_state_actions, next_state_log_pi, _ = actor.get_action(data.next_observations)
+                next_state_actions, next_state_log_pi, _, __ = actor.get_action(data.next_observations)
                 qf1_next_target = qf1_target(data.next_observations, next_state_actions)
                 qf2_next_target = qf2_target(data.next_observations, next_state_actions)
                 min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - alpha * next_state_log_pi
@@ -192,7 +192,7 @@ def train(cfg: DictConfig):
                     cfg_sac.policy_frequency
                 ):  # compensate for the delay by doing 'actor_update_interval' instead of 1
                     # SAC policy loss
-                    pi, log_pi, _ = actor.get_action(data.observations)
+                    pi, log_pi, _, _ = actor.get_action(data.observations)
                     qf1_pi = qf1(data.observations, pi)
                     qf2_pi = qf2(data.observations, pi)
                     min_qf_pi = torch.min(qf1_pi, qf2_pi)
@@ -210,7 +210,7 @@ def train(cfg: DictConfig):
 
                     if cfg_sac.autotune:
                         with torch.no_grad():
-                            _, log_pi, _ = actor.get_action(data.observations)
+                            _, log_pi, _, _ = actor.get_action(data.observations)
                         alpha_loss = (-log_alpha.exp() * (log_pi + target_entropy)).mean()
 
                         a_optimizer.zero_grad()
@@ -233,10 +233,16 @@ def train(cfg: DictConfig):
                 writer.add_scalar("losses/qf_loss", qf_loss.item() / 2.0, global_step)
                 writer.add_scalar("losses/actor_loss", actor_loss.item(), global_step)
                 writer.add_scalar("losses/alpha", alpha, global_step)
+                writer.add_scalar("losses/ts_loss", ts_loss.item(), global_step)
                 print("SPS:", int(global_step / (time.time() - start_time)))
                 writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
                 if cfg_sac.autotune:
                     writer.add_scalar("losses/alpha_loss", alpha_loss.item(), global_step)
+                if 'Altitude' in cfg_sac.env_id:
+                    de_std_mean = actor.get_action(data.observations)[3][0].mean()
+                    dt_std_mean = actor.get_action(data.observations)[3][1].mean()
+                    writer.add_scalar("action_std/de", de_std_mean, global_step)
+                    writer.add_scalar("action_std/dt", dt_std_mean, global_step)
 
     if cfg_sac.final_traj_plot:
         train_utils.final_traj_plot(envs.envs[0], cfg_sac.env_id, cfg_sim, actor, device, run_name)

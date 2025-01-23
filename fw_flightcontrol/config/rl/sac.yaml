@@ -20,7 +20,6 @@ SAC:
     q_lr: 1e-3 # the learning rate of the Q network network optimizer
     policy_frequency: 2 # the frequency of training policy (delayed)
     target_network_frequency: 1  # The frequency of updates for the target networks. Denis Yarats' implementation delays this by 2.
-    noise_clip: 0.5 # noise clip parameter of the Target Policy Smoothing Regularization
     alpha: 0.2 # Entropy regularization coefficient.
     autotune: True # automatic tuning of the entropy coefficient
     num_envs: 1 # number of parallel environments (SAC only supports 1)
