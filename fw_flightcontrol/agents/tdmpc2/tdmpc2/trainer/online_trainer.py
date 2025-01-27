@@ -39,7 +39,7 @@ class OnlineTrainer(Trainer):
 		if terminated is None:
 			terminated = torch.tensor(float('nan'))
 		else:
-			terminated = torch.tensor(terminated)
+			terminated = torch.tensor(terminated) # TODO: maybe do torch.tensor(float(terminated))
 		td = TensorDict(dict(
 			obs=obs,
 			action=action.unsqueeze(0),
@@ -68,6 +68,7 @@ class OnlineTrainer(Trainer):
 					eval_metrics = train_utils.periodic_eval(env_id, self.cfg_all.env.task.mdp, self.cfg_all.env.jsbsim, 
 															self.env, self.agent, self.agent.device)
 					eval_metrics.update(self.common_metrics())
+					print(f"Eval metrics: {eval_metrics}")
 					self.logger.log(eval_metrics, 'eval')
 					eval_next = False
 
@@ -86,11 +87,11 @@ class OnlineTrainer(Trainer):
 				self._tds = [self.to_td(obs)]
 				targets = train_utils.sample_targets(True, env_id, self.cfg_all, self.cfg_all.rl)
 				if 'AC' in env_id:
-					print(f"Env done, new targets : "\
+					print(f"-- Env done, new targets : "\
 						f"roll = {np.rad2deg(targets[0]):.3f}, "\
 						f"pitch = {np.rad2deg(targets[1]):.3f}")
 				elif 'Waypoint' in env_id:
-					print(f"Env done, new targets : "\
+					print(f"-- Env done, new targets : "\
 							f"x = {targets[0]:.3f}, "\
 							f"y = {targets[1]:.3f}, "\
 							f"z = {targets[2]:.3f}")
