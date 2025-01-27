@@ -45,26 +45,31 @@ attitude_seq: np.ndarray = np.array([
 # 										]
 # 									])
 
-# Waypoint Tracking sequence for the periodic evaluation
+# # Waypoint Tracking sequence for the periodic evaluation
+# waypoint_seq: np.ndarray = np.array([
+#                                         [   # x, y, z
+#                                             [100, 100, 600], # alt eq
+#                                             [100, -100, 600],
+#                                             [-100, 100, 600],
+#                                             [-100, -100, 600]
+#                                         ],
+#                                         [
+#                                             [100, 100, 500], # alt down
+#                                             [100, -100, 500],
+#                                             [-100, 100, 500],
+#                                             [-100, -100, 500] 
+#                                         ],
+#                                         [
+#                                             [100, 100, 700], # alt up
+#                                             [100, -100, 700],
+#                                             [-100, 100, 700],
+#                                             [-100, -100, 700] 
+#                                         ]
+#                                     ])
 waypoint_seq: np.ndarray = np.array([
                                         [   # x, y, z
-                                            [100, 100, 600], # alt eq
-                                            [100, -100, 600],
-                                            [-100, 100, 600],
-                                            [-100, -100, 600]
+                                            [0, 300, 600],
                                         ],
-                                        [
-                                            [100, 100, 500], # alt down
-                                            [100, -100, 500],
-                                            [-100, 100, 500],
-                                            [-100, -100, 500] 
-                                        ],
-                                        [
-                                            [100, 100, 700], # alt up
-                                            [100, -100, 700],
-                                            [-100, 100, 700],
-                                            [-100, -100, 700] 
-                                        ]
                                     ])
 
 # Altitude Tracking sequence for the periodic evaluation
@@ -189,6 +194,46 @@ def periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
     )
 
 
+def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
+    ep_rewards = []
+    non_norm_obs = []
+    for ref_dif, ref_ep in enumerate(ref_seq[0]):
+        obs, info = env.reset(options=cfg_sim.eval_sim_options)
+        obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
+        while not done:
+            env.set_target_state(ref_ep)
+            with torch.no_grad():
+                if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
+                    action = agent.get_action(obs)[2].squeeze_(0).detach().cpu().numpy()
+                elif isinstance(agent, ppo.Agent_PPO) or isinstance(agent, ppo_norm.Agent_PPO):
+                    action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
+                elif isinstance(agent, TDMPC2):
+                    action = agent.act(obs.squeeze(0), t0=t==0, eval_mode=True)
+            obs, reward, term, trunc, info = env.step(action)
+            obs = torch.Tensor(obs).unsqueeze(0).to(device)
+            done = np.logical_or(term, trunc)
+            non_norm_obs.append(info['non_norm_obs']) # append the non-normalized observation to the list
+            ep_reward += info['non_norm_reward']
+            t += 1
+        ep_rewards.append(ep_reward)
+    
+    non_norm_obs = np.array(non_norm_obs)
+    # compute RMSE of the x, y, z errors
+    x_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 0])))
+    y_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 1])))
+    z_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 2])))
+
+    env.reset(options=cfg_sim.train_sim_options) # reset the env with the training options for the following of the training
+
+    return dict(
+        episode_reward=np.nanmean(ep_rewards),  # mean of the episode rewards
+        x_rmse=x_rmse,  # RMSE of the x errors
+        y_rmse=y_rmse,  # RMSE of the y errors
+        z_rmse=z_rmse,  # RMSE of the z errors
+    )
+
+
+
 def periodic_eval(env_id, cfg_mdp, cfg_sim, env, agent, device):
     """Periodically evaluate a given agent."""
     print("*** Evaluating the agent ***")
@@ -200,6 +245,9 @@ def periodic_eval(env_id, cfg_mdp, cfg_sim, env, agent, device):
     elif 'Altitude' in env_id:
         ref_seq = altitude_seq
         results = periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
+    elif 'Waypoint' in env_id:
+        ref_seq = waypoint_seq
+        results = periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
     env.eval = False
     return results
 
