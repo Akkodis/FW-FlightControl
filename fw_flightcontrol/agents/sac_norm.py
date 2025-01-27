@@ -78,6 +78,8 @@ class Actor_SAC(nn.Module):
             "action_bias", torch.tensor((self.action_space_high + self.action_space_low) / 2.0, dtype=torch.float32)
         )
 
+        self.apply(weight_init)
+
     def forward(self, x):
         x = F.mish(self.lnorm1(self.fc1(x)))
         x = F.mish(self.lnorm2(self.fc2(x)))
