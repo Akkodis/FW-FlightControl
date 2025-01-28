@@ -5,6 +5,7 @@ import gymnasium as gym
 import fw_jsbgym
 import pandas as pd
 import wandb
+import plotly.graph_objects as go
 from math import pi
 from fw_flightcontrol.agents import sac_norm, sac, ppo_norm, ppo
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
@@ -333,7 +334,7 @@ def save_model_SAC(run_name, actor, qf1, qf2, seed):
 
 # Plot 
 def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
-    print("******** Plotting... ***********")
+    print("\n******** Plotting... ***********")
     e_env.eval = True
     telemetry_file = f"telemetry/{run_name}.csv"
     cfg_sim.eval_sim_options.seed = 10 # set a specific seed for the test traj plot
@@ -347,6 +348,8 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
         target = np.array([roll_ref, pitch_ref])
     elif 'Altitude' in env_id:
         target = np.array([630])
+    elif 'Waypoint' in env_id:
+        target = np.array([0, 300, 600])
 
     for step in range(4000):
         e_env.unwrapped.set_target_state(target)
@@ -365,5 +368,16 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
             print(f"Episode reward: {info['episode']['r']}")
             break
     telemetry_df = pd.read_csv(telemetry_file)
-    telemetry_table = wandb.Table(dataframe=telemetry_df)
-    wandb.log({"FinalTraj/telemetry": telemetry_table})
+    traj_3d_points = telemetry_df[['position_enu_x_m', 'position_enu_y_m', 'position_enu_z_m']].to_numpy()
+    fig = go.Figure(data=go.Scatter3d(x=traj_3d_points[:, 0], y=traj_3d_points[:, 1], z=traj_3d_points[:, 2], mode='lines'))
+
+    # Update layout to set axis limits
+    # fig.update_layout(
+    #     scene=dict(
+    #         xaxis=dict(range=[-400, 400]),
+    #         yaxis=dict(range=[-100, 400]),
+    #         zaxis=dict(range=[traj_3d_points[:, 2].min(), traj_3d_points[:, 2].max()])
+    #     )
+    # ) 
+    wandb.log({"FinalTraj/telemetry": wandb.Table(dataframe=telemetry_df),
+               "FinalTraj/3D_trajectory": wandb.Plotly(fig)})
