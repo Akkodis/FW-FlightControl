@@ -10,7 +10,7 @@ from fw_flightcontrol.agents.sac import Actor_SAC
 from fw_flightcontrol.utils.train_utils import make_env
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="default")
+@hydra.main(version_base=None, config_path="../../config", config_name="default")
 def eval(cfg: DictConfig):
     np.set_printoptions(precision=3)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -39,10 +39,10 @@ def eval(cfg: DictConfig):
     sac_agent.eval()
 
     # load the reference sequence and initialize the evaluation arrays
-    simple_ref_data = np.load(f'eval/targets/{cfg.ref_file}.npy')
+    simple_ref_data = np.load(f'eval/attitude_control/targets/{cfg.ref_file}.npy')
 
     # load the jsbsim seeds to apply at each reset and set the first seed
-    jsbsim_seeds = np.load(f'eval/targets/jsbsim_seeds.npy')
+    jsbsim_seeds = np.load(f'eval/attitude_control/targets/jsbsim_seeds.npy')
     cfg_sim.eval_sim_options.seed = float(jsbsim_seeds[0])
 
 
@@ -60,10 +60,10 @@ def eval(cfg: DictConfig):
     all_rmse = []
     all_fcs_fluct = []
 
-    if not os.path.exists("eval/outputs"):
-        os.makedirs("eval/outputs")
+    if not os.path.exists("eval/attitude_control/outputs"):
+        os.makedirs("eval/attitude_control/outputs")
 
-    eval_res_csv = f"eval/outputs/{cfg.res_file}.csv"
+    eval_res_csv = f"eval/attitude_control/outputs/{cfg.res_file}.csv"
     eval_fieldnames = ["severity", "roll_rmse", "pitch_rmse",
                         "roll_fcs_fluct", "pitch_fcs_fluct",
                         "avg_rmse", "avg_fcs_fluct"]
@@ -82,13 +82,12 @@ def eval(cfg: DictConfig):
         ep_step = 0 # step counter within an episode
         step = 0
         targets = simple_ref_data[ep_cnt]
-        roll_ref, pitch_ref = targets[0], targets[1]
         # set default target values
         # roll_ref: float = np.deg2rad(-15)
         # pitch_ref: float = np.deg2rad(-10)
 
         while step < total_steps:
-            env.set_target_state(roll_ref, pitch_ref)
+            env.set_target_state(targets)
             action = sac_agent.get_action(torch.Tensor(obs).unsqueeze(0).to(device))[2].squeeze_().detach().cpu().numpy()
             obs, reward, terminated, truncated, info = env.step(action)
             if cfg_task.mdp.obs_is_matrix:
