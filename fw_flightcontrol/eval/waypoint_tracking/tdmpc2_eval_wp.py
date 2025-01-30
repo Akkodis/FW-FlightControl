@@ -5,8 +5,10 @@ import sys
 import hydra
 import random
 import matplotlib.pyplot as plt
+from fw_jsbgym.trim.trim_point import TrimPoint
+from fw_jsbgym.utils import conversions
 
-sys.path.append(f'{os.path.dirname(os.path.abspath(__file__))}/../agents/tdmpc2/tdmpc2/')
+sys.path.append(f'{os.path.dirname(os.path.abspath(__file__))}/../../agents/tdmpc2/tdmpc2/')
 
 from omegaconf import DictConfig
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.parser import parse_cfg
@@ -14,7 +16,7 @@ from fw_flightcontrol.agents.tdmpc2.tdmpc2.envs import make_env
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="tdmpc2_default")
+@hydra.main(version_base=None, config_path="../../config", config_name="tdmpc2_default")
 def eval(cfg: DictConfig):
     np.set_printoptions(precision=3)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,30 +36,40 @@ def eval(cfg: DictConfig):
     cfg_rl = cfg.rl
     cfg_sim = cfg.env.jsbsim
 
+    # env setup
+    env = make_env(cfg)
+    state_names = list(prp.get_legal_name() for prp in env.state_prps)
+
+    trim = TrimPoint('x8')
+    trim_action = torch.tensor([trim.aileron, trim.elevator, trim.throttle])
+
     # Load agent
     agent = TDMPC2(cfg.rl)
     assert os.path.exists(cfg.rl.checkpoint), f"Checkpoint {cfg.rl.checkpoint} not found! Must be a valid filepath."
     agent.load(cfg.rl.checkpoint)
 
-    # env setup
-    env = make_env(cfg)
-    state_names = list(prp.get_legal_name() for prp in env.state_prps)
+    obs, _ = env.reset(options=cfg_sim.eval_sim_options)
+    ep_obss = [obs.cpu().detach().numpy()]
 
     ep_rewards = [0]
     enu_xs = [env.unwrapped.sim['position/enu-x-m']]
     enu_ys = [env.unwrapped.sim['position/enu-y-m']]
     enu_zs = [env.unwrapped.sim['position/enu-z-m']]
-    step = 0
-    target = np.array([0, 300, 600])
-    total_steps = 2000 
+    step, t = 0, 0
+    target_enu = np.array([0, 300, 600])
+    target = conversions.enu2ecef(*target_enu,
+                                  env.unwrapped.sim['ic/lat-geod-deg'],
+                                  env.unwrapped.sim['ic/long-gc-deg'],
+                                  0.0)
+    total_steps = 2000
 
     while step < total_steps:
         env.set_target_state(target)
-        # action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
+        # action = trim_action
         action = agent.act(obs, t0=t==0, eval_mode=True)
         obs, reward, term, trunc, info = env.step(action)
-        ep_obss.append(obs)
-        ep_rewards.append(reward)
+        ep_obss.append(obs.cpu().detach().numpy())
+        ep_rewards.append(reward.cpu().detach().numpy())
         enu_xs.append(env.unwrapped.sim['position/enu-x-m'])
         enu_ys.append(env.unwrapped.sim['position/enu-y-m'])
         enu_zs.append(env.unwrapped.sim['position/enu-z-m'])
@@ -69,6 +81,7 @@ def eval(cfg: DictConfig):
             t = 0
             print(f"Episode reward: {info['episode']['r']}")
             print(f"******* {step}/{total_steps} *******")
+            break
 
     env.close()
 
@@ -91,10 +104,13 @@ def eval(cfg: DictConfig):
     ax[0, 1].set_title('Airspeed [kph]')
 
     ax[0, 2].remove()
-    ax[0, 2] = fig.add_subplot(1, 3, 3, projection='3d')
-    ax[0,2].set_xlabel("X")
-    ax[0,2].set_ylabel("Y")
-    ax[0,2].set_zlabel("Z")
+    ax[0, 2] = fig.add_subplot(2, 3, 3, projection='3d')
+    ax[0, 2].set_xlim(enu_xs.min()-10, enu_xs.max()+10)
+    ax[0, 2].set_ylim(enu_ys.min()-10, enu_ys.max()+10)
+    ax[0, 2].set_zlim(enu_zs.min()-10, enu_zs.max()+10)
+    ax[0, 2].set_xlabel("X")
+    ax[0, 2].set_ylabel("Y")
+    ax[0, 2].set_zlabel("Z")
     for i in range(ep_obss.shape[0] - 1):
         ax[0,2].plot(enu_xs[i:i+2], enu_ys[i:i+2], enu_zs[i:i+2], c=plt.cm.plasma(i/enu_xs.shape[0]))
 

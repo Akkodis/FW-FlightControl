@@ -8,6 +8,8 @@ from omegaconf import DictConfig
 from fw_flightcontrol.agents.sac_norm import Actor_SAC
 from fw_flightcontrol.utils.train_utils import make_env
 from fw_jsbgym.trim.trim_point import TrimPoint
+from fw_jsbgym.utils import conversions
+from fw_jsbgym.utils import jsbsim_properties as prp
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="default")
@@ -33,10 +35,10 @@ def eval(cfg: DictConfig):
                    'telemetry/telemetry.csv', eval=True)()
 
     # loading the agent
-    train_dict = torch.load(cfg.model_path, map_location=device)[0] # only load the actor's state dict
-    sac_agent = Actor_SAC(env).to(device)
-    sac_agent.load_state_dict(train_dict)
-    sac_agent.eval()
+    # train_dict = torch.load(cfg.model_path, map_location=device)[0] # only load the actor's state dict
+    # sac_agent = Actor_SAC(env).to(device)
+    # sac_agent.load_state_dict(train_dict)
+    # sac_agent.eval()
 
     trim = TrimPoint('x8')
     trim_action = np.array([trim.aileron, trim.elevator, trim.throttle])
@@ -50,12 +52,17 @@ def eval(cfg: DictConfig):
     enu_ys = [env.unwrapped.sim['position/enu-y-m']]
     enu_zs = [env.unwrapped.sim['position/enu-z-m']]
     step = 0
-    target = np.array([0, 300, 600])
+    target_enu = np.array([0, 300, 600])
+    target = conversions.enu2ecef(*target_enu,
+                                  env.unwrapped.sim['ic/lat-geod-deg'],
+                                  env.unwrapped.sim['ic/long-gc-deg'],
+                                  0.0)
     total_steps = 2000
 
     while step < total_steps:
         env.set_target_state(target)
-        action = sac_agent.get_action(torch.Tensor(obs).unsqueeze(0).to(device))[2].squeeze_().detach().cpu().numpy()
+        action = trim_action
+        # action = sac_agent.get_action(torch.Tensor(obs).unsqueeze(0).to(device))[2].squeeze_().detach().cpu().numpy()
         obs, reward, terminated, truncated, info = env.step(action)
         ep_obss.append(obs)
         ep_rewards.append(reward)
@@ -96,10 +103,13 @@ def eval(cfg: DictConfig):
     ax[0, 1].set_title('Airspeed [kph]')
 
     ax[0, 2].remove()
-    ax[0, 2] = fig.add_subplot(1, 3, 3, projection='3d')
-    ax[0,2].set_xlabel("X")
-    ax[0,2].set_ylabel("Y")
-    ax[0,2].set_zlabel("Z")
+    ax[0, 2] = fig.add_subplot(2, 3, 3, projection='3d')
+    ax[0, 2].set_xlim(enu_xs.min()-10, enu_xs.max()+10)
+    ax[0, 2].set_ylim(enu_ys.min()-10, enu_ys.max()+10)
+    ax[0, 2].set_zlim(enu_zs.min()-10, enu_zs.max()+10)
+    ax[0, 2].set_xlabel("X")
+    ax[0, 2].set_ylabel("Y")
+    ax[0, 2].set_zlabel("Z")
     for i in range(ep_obss.shape[0] - 1):
         ax[0,2].plot(enu_xs[i:i+2], enu_ys[i:i+2], enu_zs[i:i+2], c=plt.cm.plasma(i/enu_xs.shape[0]))
 
