@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from math import pi
 from fw_flightcontrol.agents import sac_norm, sac, ppo_norm, ppo
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
+from fw_jsbgym.utils import conversions
 from omegaconf import DictConfig, OmegaConf
 
 # Global variables
@@ -201,6 +202,7 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
     for ref_dif, ref_ep in enumerate(ref_seq[0]):
         obs, info = env.reset(options=cfg_sim.eval_sim_options)
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
+        ref_ep = conversions.enu2ecef(*ref_ep, env.unwrapped.sim['ic/lat-geod-deg'], env.unwrapped.sim['ic/long-gc-deg'], 0.0)
         while not done:
             env.set_target_state(ref_ep)
             with torch.no_grad():
@@ -276,7 +278,7 @@ def make_env(env_id, cfg_env, render_mode, telemetry_file=None, eval=False, gamm
     return thunk
 
 
-def sample_targets(single_target: bool, env_id: str, cfg: DictConfig, cfg_rl: DictConfig):
+def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_rl: DictConfig):
     targets = None
     if 'AC' in env_id:
         roll_high = np.full((cfg_rl.num_envs, 1), np.deg2rad(cfg.roll_limit))
@@ -292,9 +294,15 @@ def sample_targets(single_target: bool, env_id: str, cfg: DictConfig, cfg_rl: Di
         # y_ref = np.random.uniform(250, 350, (cfg_rl.num_envs, 1))
         # z_ref = np.random.uniform(550, 650, (cfg_rl.num_envs, 1))
         x_targets = np.full((cfg_rl.num_envs, 1), 0)
-        y_targets = np.full((cfg_rl.num_envs, 1), 300)
-        z_targets = np.full((cfg_rl.num_envs, 1), 600)
-        targets = np.hstack((x_targets, y_targets, z_targets))
+        y_targets = np.full((cfg_rl.num_envs, 1), 300.0)
+        z_targets = np.full((cfg_rl.num_envs, 1), 600.0)
+        targets_enu = np.hstack((x_targets, y_targets, z_targets))
+        targets = np.zeros_like(targets_enu)
+        for i in range(cfg_rl.num_envs):
+            targets[i] = conversions.enu2ecef(*targets_enu[i],
+                                            env.unwrapped.sim['ic/lat-geod-deg'],
+                                            env.unwrapped.sim['ic/long-gc-deg'],
+                                            0.0)
     elif 'Altitude' in env_id:
         z_targets = np.random.uniform(550, 650, (cfg_rl.num_envs, 1))
         targets = z_targets
@@ -338,9 +346,10 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
     e_env.eval = True
     telemetry_file = f"telemetry/{run_name}.csv"
     cfg_sim.eval_sim_options.seed = 10 # set a specific seed for the test traj plot
-    e_obs, info = e_env.reset(options={"render_mode": "log"} | OmegaConf.to_container(cfg_sim.eval_sim_options, resolve=True))
+    # reset the environment with the evaluation options + modifications for rendering and telemetry
+    e_obs, info = e_env.reset(options=OmegaConf.to_container(cfg_sim.eval_sim_options, resolve=True) |
+                              {"render_mode": "log", "telemetry_file": telemetry_file})
     e_obs, info, done, ep_reward, t = e_obs, info, False, 0, 0
-    e_env.unwrapped.telemetry_setup(telemetry_file)
     e_obs = torch.Tensor(e_obs).unsqueeze(0).to(device)
     if 'AC' in env_id:
         roll_ref = np.deg2rad(30)
@@ -349,7 +358,11 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
     elif 'Altitude' in env_id:
         target = np.array([630])
     elif 'Waypoint' in env_id:
-        target = np.array([0, 300, 600])
+        target_enu = np.array([0, 300.0, 600.0])
+        target = conversions.enu2ecef(*target_enu,
+                                      e_env.unwrapped.sim['ic/lat-geod-deg'],
+                                      e_env.unwrapped.sim['ic/long-gc-deg'],
+                                      0.0)
 
     for step in range(4000):
         e_env.unwrapped.set_target_state(target)
