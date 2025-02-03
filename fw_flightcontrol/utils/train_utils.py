@@ -382,15 +382,23 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
             break
     telemetry_df = pd.read_csv(telemetry_file)
     traj_3d_points = telemetry_df[['position_enu_x_m', 'position_enu_y_m', 'position_enu_z_m']].to_numpy()
-    fig = go.Figure(data=go.Scatter3d(x=traj_3d_points[:, 0], y=traj_3d_points[:, 1], z=traj_3d_points[:, 2], mode='lines'))
+    traj_3d = go.Scatter3d(x=traj_3d_points[:, 0], y=traj_3d_points[:, 1], z=traj_3d_points[:, 2], mode='lines')
+    start_point = go.Scatter3d(x=[traj_3d_points[0, 0]], y=[traj_3d_points[0, 1]], z=[traj_3d_points[0, 2]], mode='markers', marker=dict(size=5, color='red'))
+    target_point = go.Scatter3d(x=[target_enu[0]], y=[target_enu[1]], z=[target_enu[2]], mode='markers', marker=dict(size=5, color='green'))
+    fig = go.Figure(data=[traj_3d, start_point, target_point])
+
+    # compute figure axis limits based on the trajectory points and target point
+    x_min, x_max = min(traj_3d_points[:, 0].min(), target_enu[0]) - 10, max(traj_3d_points[:, 0].max(), target_enu[0]) + 10
+    y_min, y_max = min(traj_3d_points[:, 1].min(), target_enu[1]) - 10, max(traj_3d_points[:, 1].max(), target_enu[1]) + 10
+    z_min, z_max = min(traj_3d_points[:, 2].min(), target_enu[2]) - 10, max(traj_3d_points[:, 2].max(), target_enu[2]) + 10
 
     # Update layout to set axis limits
-    # fig.update_layout(
-    #     scene=dict(
-    #         xaxis=dict(range=[-400, 400]),
-    #         yaxis=dict(range=[-100, 400]),
-    #         zaxis=dict(range=[traj_3d_points[:, 2].min(), traj_3d_points[:, 2].max()])
-    #     )
-    # ) 
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(range=[x_min, x_max]),
+            yaxis=dict(range=[y_min, y_max]),
+            zaxis=dict(range=[z_min, z_max]),
+        )
+    ) 
     wandb.log({"FinalTraj/telemetry": wandb.Table(dataframe=telemetry_df),
                "FinalTraj/3D_trajectory": wandb.Plotly(fig)})
