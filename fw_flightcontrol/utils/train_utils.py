@@ -203,6 +203,8 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
         obs, info = env.reset(options=cfg_sim.eval_sim_options)
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
         ref_ep = conversions.enu2ecef(*ref_ep, env.unwrapped.sim['ic/lat-geod-deg'], env.unwrapped.sim['ic/long-gc-deg'], 0.0)
+        if 'WaypointVa' in env_id:
+            ref_ep = np.hstack((ref_ep, np.array([60.0])))
         while not done:
             env.set_target_state(ref_ep)
             with torch.no_grad():
@@ -221,18 +223,25 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
         ep_rewards.append(ep_reward)
     
     non_norm_obs = np.array(non_norm_obs)
-    # compute RMSE of the x, y, z errors
+    # Compute the distances to the target for the episode
+    dists_to_target = np.sqrt(np.square(non_norm_obs[:, 0]) + np.square(non_norm_obs[:, 1]) + np.square(non_norm_obs[:, 2]))
+    dists_to_target_mean = np.mean(dists_to_target)
     x_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 0])))
     y_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 1])))
     z_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 2])))
+    va_rmse = np.nan
+    if 'WaypointVa' in env_id:
+        va_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 4])))
 
     env.reset(options=cfg_sim.train_sim_options) # reset the env with the training options for the following of the training
 
     return dict(
         episode_reward=np.nanmean(ep_rewards),  # mean of the episode rewards
+        dists_to_target_mean=dists_to_target_mean,  # mean of the distances to the target for 1 episode
         x_rmse=x_rmse,  # RMSE of the x errors
         y_rmse=y_rmse,  # RMSE of the y errors
         z_rmse=z_rmse,  # RMSE of the z errors
+        va_rmse=va_rmse  # RMSE of the airspeed errors
     )
 
 
@@ -303,6 +312,8 @@ def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_r
                                             env.unwrapped.sim['ic/lat-geod-deg'],
                                             env.unwrapped.sim['ic/long-gc-deg'],
                                             0.0)
+        if 'WaypointVa' in env_id:
+            targets = np.hstack((targets, np.full((cfg_rl.num_envs, 1), 60.0))) # add the airspeed target (60 kph)
     elif 'Altitude' in env_id:
         z_targets = np.random.uniform(550, 650, (cfg_rl.num_envs, 1))
         targets = z_targets
@@ -363,6 +374,8 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
                                       e_env.unwrapped.sim['ic/lat-geod-deg'],
                                       e_env.unwrapped.sim['ic/long-gc-deg'],
                                       0.0)
+        if 'WaypointVa' in env_id:
+            target = np.hstack((target, np.array([60.0])))
 
     for step in range(4000):
         e_env.unwrapped.set_target_state(target)
