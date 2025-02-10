@@ -90,11 +90,6 @@ class OnlineTrainer(Trainer):
 					print(f"-- Env done, new targets : "\
 						f"roll = {np.rad2deg(targets[0]):.3f}, "\
 						f"pitch = {np.rad2deg(targets[1]):.3f}")
-				elif 'Waypoint' in env_id:
-					print(f"-- Env done, new targets : "\
-							f"x = {targets[0]:.3f}, "\
-							f"y = {targets[1]:.3f}, "\
-							f"z = {targets[2]:.3f}")
 
 			# Set roll and pitch references
 			# self.env.unwrapped.set_target_state(roll_ref, pitch_ref)
