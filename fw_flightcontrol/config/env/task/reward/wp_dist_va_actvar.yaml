@@ -1,0 +1,12 @@
+name: wp_dist_actvar
+weights:
+    r_dist:
+        max_r: 8.0
+        tanh_scale: 0.003
+    r_airspeed:
+        max_r: 1.0
+        tanh_scale: 0.05
+    act_var:
+        enabled: true
+        max_r: 1.0
+        tanh_scale: 1.5
