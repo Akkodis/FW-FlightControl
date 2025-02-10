@@ -70,7 +70,7 @@ attitude_seq: np.ndarray = np.array([
 #                                     ])
 waypoint_seq: np.ndarray = np.array([
                                         [   # x, y, z
-                                            [0, 300, 600],
+                                            [0, 50, 600],
                                         ],
                                     ])
 
@@ -303,7 +303,7 @@ def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_r
         # y_ref = np.random.uniform(250, 350, (cfg_rl.num_envs, 1))
         # z_ref = np.random.uniform(550, 650, (cfg_rl.num_envs, 1))
         x_targets = np.full((cfg_rl.num_envs, 1), 0)
-        y_targets = np.full((cfg_rl.num_envs, 1), 300.0)
+        y_targets = np.full((cfg_rl.num_envs, 1), 50.0)
         z_targets = np.full((cfg_rl.num_envs, 1), 600.0)
         targets_enu = np.hstack((x_targets, y_targets, z_targets))
         targets = np.zeros_like(targets_enu)
@@ -369,7 +369,8 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
     elif 'Altitude' in env_id:
         target = np.array([630])
     elif 'Waypoint' in env_id:
-        target_enu = np.array([0, 300.0, 600.0])
+        # target_enu = np.array([0, 300.0, 600.0])
+        target_enu = np.array([0, 50.0, 600.0])
         target = conversions.enu2ecef(*target_enu,
                                       e_env.unwrapped.sim['ic/lat-geod-deg'],
                                       e_env.unwrapped.sim['ic/long-gc-deg'],
