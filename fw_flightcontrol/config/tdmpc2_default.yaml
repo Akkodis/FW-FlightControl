@@ -3,7 +3,7 @@ defaults:
     - rl: ac_tdmpc2
     - env/jsbsim: noatmo
     - env/task/mdp: no_hist_all
-    - env/task/reward: actvar
+    - env/task/reward: ac_actvar
     - override hydra/launcher: submitit_local
 
 # training

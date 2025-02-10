@@ -3,7 +3,7 @@ defaults:
     - rl: ppo
     - env/jsbsim: noatmo
     - env/task/mdp: no_hist_all
-    - env/task/reward: my_bohn
+    - env/task/reward: ac_my_bohn
 
 # training
 # reference attitude angle limits (+/- degrees)
