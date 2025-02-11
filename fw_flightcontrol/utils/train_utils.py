@@ -199,6 +199,7 @@ def periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
 def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
     ep_rewards = []
     non_norm_obs = []
+    fcs_fluct = [] # dicts storing all obs across all episodes and fluctuation of the flight controls for all episodes
     for ref_dif, ref_ep in enumerate(ref_seq[0]):
         obs, info = env.reset(options=cfg_sim.eval_sim_options)
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
@@ -221,7 +222,11 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
             ep_reward += info['non_norm_reward']
             t += 1
         ep_rewards.append(ep_reward)
-    
+
+        ep_fcs_pos_hist = np.array(info['fcs_pos_hist'])
+        fcs_fluct.append(np.mean(np.abs(np.diff(ep_fcs_pos_hist, axis=0)), axis=0)) # compute the fcs fluctuation of the episode being reset and append to the list
+
+
     non_norm_obs = np.array(non_norm_obs)
     # Compute the distances to the target for the episode
     dists_to_target = np.sqrt(np.square(non_norm_obs[:, 0]) + np.square(non_norm_obs[:, 1]) + np.square(non_norm_obs[:, 2]))
@@ -229,6 +234,11 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
     x_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 0])))
     y_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 1])))
     z_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 2])))
+
+    # Convert fcs fluctuations to numpy array
+    fcs_fluct = np.array(fcs_fluct).flatten()
+
+    # Compute the RMSE of the airspeed errors
     va_rmse = np.nan
     if 'WaypointVa' in env_id:
         va_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 4])))
@@ -241,9 +251,11 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
         x_rmse=x_rmse,  # RMSE of the x errors
         y_rmse=y_rmse,  # RMSE of the y errors
         z_rmse=z_rmse,  # RMSE of the z errors
-        va_rmse=va_rmse  # RMSE of the airspeed errors
+        va_rmse=va_rmse,  # RMSE of the airspeed errors
+        ail_fluct=fcs_fluct[0],  # aileron fluctuation
+        ele_fluct=fcs_fluct[1],  # elevator fluctuation
+        thr_fluct=fcs_fluct[2],  # throttle fluctuation
     )
-
 
 
 def periodic_eval(env_id, cfg_mdp, cfg_sim, env, agent, device):
