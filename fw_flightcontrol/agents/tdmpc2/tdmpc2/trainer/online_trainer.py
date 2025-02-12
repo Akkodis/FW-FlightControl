@@ -39,7 +39,7 @@ class OnlineTrainer(Trainer):
 		if terminated is None:
 			terminated = torch.tensor(float('nan'))
 		else:
-			terminated = torch.tensor(terminated) # TODO: maybe do torch.tensor(float(terminated))
+			terminated = torch.tensor(float(terminated))
 		td = TensorDict(dict(
 			obs=obs,
 			action=action.unsqueeze(0),

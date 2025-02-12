@@ -28,6 +28,7 @@ class TDMPC2:
 			{'params': self.model._decoder.parameters(), 'lr': self.cfg.lr*self.cfg.enc_lr_scale} if self.cfg.use_decoder else {'params': []},
 			{'params': self.model._dynamics.parameters()},
 			{'params': self.model._reward.parameters()},
+			{'params': self.model._terminated.parameters()},
 			{'params': self.model._Qs.parameters()},
 			{'params': self.model._task_emb.parameters() if self.cfg.multitask else []}
 		], lr=self.cfg.lr)
@@ -111,6 +112,7 @@ class TDMPC2:
 			z = self.model.next(z, actions[t], task)
 			G += discount * (1-terminated) * reward
 			discount *= self.discount[torch.tensor(task)] if self.cfg.multitask else self.discount
+			terminated = torch.clip_(terminated + (self.model.terminated(z, task) > 0.5).float(), max=1.)
 		return G + discount * (1-terminated) * self.model.Q(z, self.model.pi(z, task)[1], task, return_type='avg')
 
 	@torch.no_grad()
@@ -224,6 +226,7 @@ class TDMPC2:
 		Args:
 			next_z (torch.Tensor): Latent state at the following time step.
 			reward (torch.Tensor): Reward at the current time step.
+			terminated (torch.Tensor): Termination signal at the current time step.
 			task (torch.Tensor): Task index (only used for multi-task experiments).
 		
 		Returns:
@@ -278,6 +281,7 @@ class TDMPC2:
 		_zs = zs[:-1]
 		qs = self.model.Q(_zs, action, task, return_type='all')
 		reward_preds = self.model.reward(_zs, action, task)
+		terminated_pred = self.model.terminated(zs[-1], task)
 		
 		# Compute losses
 		reward_loss, value_loss = 0, 0
@@ -285,6 +289,7 @@ class TDMPC2:
 			reward_loss += math.soft_ce(reward_preds[t], reward[t], self.cfg).mean() * self.cfg.rho**t
 			for q in range(self.cfg.num_q):
 				value_loss += math.soft_ce(qs[q][t], td_targets[t], self.cfg).mean() * self.cfg.rho**t
+		terminated_loss = F.binary_cross_entropy(terminated_pred, terminated)
 		consistency_loss *= (1/self.cfg.horizon)
 		decoder_loss *= (1/self.cfg.horizon+1)
 		reward_loss *= (1/self.cfg.horizon)
@@ -293,6 +298,7 @@ class TDMPC2:
 			self.cfg.consistency_coef * consistency_loss +
 			self.cfg.decoder_coef * decoder_loss +
 			self.cfg.reward_coef * reward_loss +
+			self.cfg.terminated_coef * terminated_loss +
 			self.cfg.value_coef * value_loss
 		)
 
@@ -313,6 +319,7 @@ class TDMPC2:
 			"consistency_loss": float(consistency_loss.mean().item()),
 			"decoder_loss": float(decoder_loss.mean().item()) if self.cfg.use_decoder else 0,
 			"reward_loss": float(reward_loss.mean().item()),
+			"terminated_loss": float(terminated_loss.mean().item()),
 			"value_loss": float(value_loss.mean().item()),
 			"pi_loss": pi_loss,
 			"total_loss": float(total_loss.mean().item()),
