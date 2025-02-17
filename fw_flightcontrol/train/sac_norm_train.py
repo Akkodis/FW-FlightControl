@@ -13,6 +13,7 @@ from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from fw_flightcontrol.utils import train_utils
 from fw_flightcontrol.agents.sac_norm import Actor_SAC, SoftQNetwork_SAC
+from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.scale import RunningScale
 
 
 
@@ -110,6 +111,8 @@ def train(cfg: DictConfig):
         handle_timeout_termination=False,
     )
 
+    scale = RunningScale(cfg_sac.scale_tau)
+
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
@@ -198,6 +201,10 @@ def train(cfg: DictConfig):
                     qf2_pi = qf2(data.observations, pi)
                     min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
+                    # scale the Q values
+                    scale.update(min_qf_pi)
+                    min_qf_pi = scale(min_qf_pi)
+
                     # CAPS loss ts
                     act_mean = actor.get_action(data.observations)[2]
                     next_act_mean = actor.get_action(data.next_observations)[2]
@@ -232,6 +239,7 @@ def train(cfg: DictConfig):
                 writer.add_scalar("losses/qf1_loss", qf1_loss.item(), global_step)
                 writer.add_scalar("losses/qf2_loss", qf2_loss.item(), global_step)
                 writer.add_scalar("losses/qf_loss", qf_loss.item() / 2.0, global_step)
+                writer.add_scalar("losses/Q scale", scale.value, global_step)
                 writer.add_scalar("losses/actor_loss", actor_loss.item(), global_step)
                 writer.add_scalar("losses/alpha", alpha, global_step)
                 writer.add_scalar("losses/ts_loss", ts_loss.item(), global_step)
