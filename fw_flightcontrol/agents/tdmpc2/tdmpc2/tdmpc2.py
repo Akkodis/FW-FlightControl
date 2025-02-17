@@ -34,7 +34,7 @@ class TDMPC2:
 		], lr=self.cfg.lr)
 		self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5)
 		self.model.eval()
-		self.scale = RunningScale(cfg)
+		self.scale = RunningScale(cfg.tau)
 		self.cfg.iterations += 2*int(cfg.action_dim >= 20) # Heuristic for large action spaces
 		if OmegaConf.is_missing(cfg, 'discount'):
 			self.discount = torch.tensor(

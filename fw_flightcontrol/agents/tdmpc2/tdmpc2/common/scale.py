@@ -4,8 +4,9 @@ import torch
 class RunningScale:
 	"""Running trimmed scale estimator."""
 
-	def __init__(self, cfg):
-		self.cfg = cfg
+	def __init__(self, tau=0.01):
+		# self.cfg = cfg
+		self.tau = tau
 		self._value = torch.ones(1, dtype=torch.float32, device=torch.device('cuda'))
 		self._percentiles = torch.tensor([5, 95], dtype=torch.float32, device=torch.device('cuda'))
 
@@ -37,7 +38,7 @@ class RunningScale:
 	def update(self, x):
 		percentiles = self._percentile(x.detach())
 		value = torch.clamp(percentiles[1] - percentiles[0], min=1.)
-		self._value.data.lerp_(value, self.cfg.tau)
+		self._value.data.lerp_(value, self.tau)
 
 	def __call__(self, x, update=False):
 		if update:
