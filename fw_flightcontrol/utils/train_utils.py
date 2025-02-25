@@ -47,32 +47,17 @@ attitude_seq: np.ndarray = np.array([
 # 										]
 # 									])
 
-# # Waypoint Tracking sequence for the periodic evaluation
-# waypoint_seq: np.ndarray = np.array([
-#                                         [   # x, y, z
-#                                             [100, 100, 600], # alt eq
-#                                             [100, -100, 600],
-#                                             [-100, 100, 600],
-#                                             [-100, -100, 600]
-#                                         ],
-#                                         [
-#                                             [100, 100, 500], # alt down
-#                                             [100, -100, 500],
-#                                             [-100, 100, 500],
-#                                             [-100, -100, 500] 
-#                                         ],
-#                                         [
-#                                             [100, 100, 700], # alt up
-#                                             [100, -100, 700],
-#                                             [-100, 100, 700],
-#                                             [-100, -100, 700] 
-#                                         ]
-#                                     ])
+# Waypoint Tracking sequence for the periodic evaluation
 waypoint_seq: np.ndarray = np.array([
-                                        [   # x, y, z
-                                            [0, 50, 600],
-                                        ],
+                                        [-36.209, 34.469, 600.899],
+                                        [-31.194, 28.434, 573.197],
+                                        [-4.782, 40.971, 628.257],
+                                        [32.136, 20.208, 632.541],
+                                        [-9.861, 38.935, 570.221]
                                     ])
+# waypoint_seq: np.ndarray = np.array([
+#                                         [0, 50, 600],
+#                                     ])
 
 # Altitude Tracking sequence for the periodic evaluation
 altitude_seq: np.ndarray = np.array([[550], [570], [590], [600], [620], [640], [650]])
@@ -197,10 +182,10 @@ def periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
 
 
 def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
-    ep_rewards = []
-    non_norm_obs = []
-    fcs_fluct = [] # dicts storing all obs across all episodes and fluctuation of the flight controls for all episodes
-    for ref_dif, ref_ep in enumerate(ref_seq[0]):
+    non_norm_obs = np.full((ref_seq.shape[0], env.max_episode_steps) + env.observation_space.shape, np.nan)
+    ep_rewards, fcs_fluct, targets_missed, targets_reached, successes = [[] for _ in range(5)]
+    for ep_idx, ref_ep in enumerate(ref_seq):
+        # non_norm_obs.append([])
         obs, info = env.reset(options=cfg_sim.eval_sim_options)
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
         ref_ep = conversions.enu2ecef(*ref_ep, env.unwrapped.sim['ic/lat-geod-deg'], env.unwrapped.sim['ic/long-gc-deg'], 0.0)
@@ -218,36 +203,39 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
             obs, reward, term, trunc, info = env.step(action)
             obs = torch.Tensor(obs).unsqueeze(0).to(device)
             done = np.logical_or(term, trunc)
-            non_norm_obs.append(info['non_norm_obs']) # append the non-normalized observation to the list
+            non_norm_obs[ep_idx, t] = info['non_norm_obs'] # append the non-normalized observation to the list
             ep_reward += info['non_norm_reward']
             t += 1
         ep_rewards.append(ep_reward)
 
+        targets_missed.append(int(info['target_missed']))
+        targets_reached.append(int(info['target_reached']))
         ep_fcs_pos_hist = np.array(info['fcs_pos_hist'])
         fcs_fluct.append(np.mean(np.abs(np.diff(ep_fcs_pos_hist, axis=0)), axis=0)) # compute the fcs fluctuation of the episode being reset and append to the list
 
-
     non_norm_obs = np.array(non_norm_obs)
     # Compute the distances to the target for the episode
-    dists_to_target = np.sqrt(np.square(non_norm_obs[:, 0]) + np.square(non_norm_obs[:, 1]) + np.square(non_norm_obs[:, 2]))
-    dists_to_target_mean = np.mean(dists_to_target)
-    x_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 0])))
-    y_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 1])))
-    z_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 2])))
+    dists_to_target = np.sqrt(np.square(non_norm_obs[:, :, 0]) + np.square(non_norm_obs[:, :, 1]) + np.square(non_norm_obs[:, :, 2]))
+    dists_to_target_mean = np.nanmean(dists_to_target)
+    x_rmse = np.sqrt(np.nanmean(np.square(non_norm_obs[:, :, 0])))
+    y_rmse = np.sqrt(np.nanmean(np.square(non_norm_obs[:, :, 1])))
+    z_rmse = np.sqrt(np.nanmean(np.square(non_norm_obs[:, :, 2])))
 
     # Convert fcs fluctuations to numpy array
-    fcs_fluct = np.array(fcs_fluct).flatten()
+    fcs_fluct = np.array(fcs_fluct).mean(axis=0)
 
     # Compute the RMSE of the airspeed errors
     va_rmse = np.nan
     if 'WaypointVa' in env_id:
-        va_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, 4])))
+        va_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, :, 4])))
 
     env.reset(options=cfg_sim.train_sim_options) # reset the env with the training options for the following of the training
 
     return dict(
         episode_reward=np.nanmean(ep_rewards),  # mean of the episode rewards
         dists_to_target_mean=dists_to_target_mean,  # mean of the distances to the target for 1 episode
+        targets_reached=np.sum(targets_reached),  # if the target was reached
+        targets_missed=np.sum(targets_missed),  # if the target was missed
         x_rmse=x_rmse,  # RMSE of the x errors
         y_rmse=y_rmse,  # RMSE of the y errors
         z_rmse=z_rmse,  # RMSE of the z errors
@@ -308,16 +296,21 @@ def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_r
         pitch_targets = np.random.uniform(-pitch_high, pitch_high)
         targets = np.hstack((roll_targets, pitch_targets))
     elif 'Waypoint' in env_id:
-        # xy_lows = np.full((cfg_rl.num_envs, 2), 50)
-        # xy_highs = np.full((cfg_rl.num_envs, 2), 100)
-        # xy_ref = np.random.uniform(xy_lows, xy_highs) * np.random.choice([-1, 1], (cfg_rl.num_envs, 2))
-        # x_ref = np.zeros((cfg_rl.num_envs, 1))
-        # y_ref = np.random.uniform(250, 350, (cfg_rl.num_envs, 1))
-        # z_ref = np.random.uniform(550, 650, (cfg_rl.num_envs, 1))
-        x_targets = np.full((cfg_rl.num_envs, 1), 0)
-        y_targets = np.full((cfg_rl.num_envs, 1), 50.0)
-        z_targets = np.full((cfg_rl.num_envs, 1), 600.0)
-        targets_enu = np.hstack((x_targets, y_targets, z_targets))
+        # randomly sampling a unit vector (direction) in the ENU frame
+        # don't sample if y distance is too close from starting point
+        unit_vecs = np.random.uniform(low=[-1, 0.5, -1],
+                                      high=[1, 1, 1],
+                                      size=(cfg_rl.num_envs, 3))
+        unit_vecs /= np.linalg.norm(unit_vecs)
+
+        # targets are 50m away and z is around the starting altitude at 600m
+        targets_enu = unit_vecs * 50 + np.full((cfg_rl.num_envs, 3), [0, 0, 600])
+
+        # Straight line (the waypoint is always at the same x, z and y=50)
+        # x_targets = np.full((cfg_rl.num_envs, 1), 0)
+        # y_targets = np.full((cfg_rl.num_envs, 1), 50.0)
+        # z_targets = np.full((cfg_rl.num_envs, 1), 600.0)
+        # targets_enu = np.hstack((x_targets, y_targets, z_targets))
         targets = np.zeros_like(targets_enu)
         for i in range(cfg_rl.num_envs):
             targets[i] = conversions.enu2ecef(*targets_enu[i],
@@ -390,14 +383,14 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
         if 'WaypointVa' in env_id:
             target = np.hstack((target, np.array([60.0])))
 
-    for step in range(4000):
+    while not done:
         e_env.unwrapped.set_target_state(target)
         if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
             action = agent.get_action(e_obs)[2].squeeze_().detach().cpu().numpy()
         elif isinstance(agent, ppo.Agent_PPO) or isinstance(agent, ppo_norm.Agent_PPO):
             action = agent.get_action_and_value(e_obs)[1][0].detach().cpu().numpy()
         elif isinstance(agent, TDMPC2):
-            action = agent.act(e_obs.squeeze(0), t0=step==0, eval_mode=True)
+            action = agent.act(e_obs.squeeze(0), t0=t==0, eval_mode=True)
         e_obs, reward, truncated, terminated, info = e_env.step(action)
         e_obs = torch.Tensor(e_obs).unsqueeze(0).to(device)
         done = np.logical_or(truncated, terminated)
