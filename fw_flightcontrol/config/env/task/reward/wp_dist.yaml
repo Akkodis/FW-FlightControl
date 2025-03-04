@@ -1,7 +1,7 @@
 name: wp_dist
 weights:
     r_dist:
-        max_r: 10.0
+        max_r: 8.0
         tanh_scale: 0.003
     act_var:
         enabled: False

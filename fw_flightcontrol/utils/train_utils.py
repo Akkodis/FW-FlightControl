@@ -48,13 +48,14 @@ attitude_seq: np.ndarray = np.array([
 # 									])
 
 # Waypoint Tracking sequence for the periodic evaluation
-waypoint_seq: np.ndarray = np.array([
-                                        [-36.209, 34.469, 600.899],
-                                        [-31.194, 28.434, 573.197],
-                                        [-4.782, 40.971, 628.257],
-                                        [32.136, 20.208, 632.541],
-                                        [-9.861, 38.935, 570.221]
+waypoint_seq: np.ndarray = np.array([       # x, y, z
+                                        [1.88, 49.1, 609.256],
+                                        [-4.027, 49.837, 600.229],
+                                        [29.338, 39.304, 590.279],
+                                        [-37.94, 31.081, 609.722],
+                                        [-29.219, 39.939, 592.849]
                                     ])
+
 # waypoint_seq: np.ndarray = np.array([
 #                                         [0, 50, 600],
 #                                     ])
@@ -287,6 +288,36 @@ def make_env(env_id, cfg_env, render_mode, telemetry_file=None, eval=False, gamm
     return thunk
 
 
+def constrained_waypoint_sample(n_points, radius=50, z_center=600, min_z=-15, max_z=15, min_y=20):
+    # Sample all z values at once
+    z = np.random.uniform(min_z, max_z, size=n_points)
+
+    # Compute horizontal radii r for all z values
+    r = np.sqrt(radius**2 - z**2)
+
+    # Check if min_y is geometrically possible (should never fail for [-15, 15] on a 50m sphere, but good practice)
+    if np.any(min_y > r):
+        raise ValueError(f"min_y={min_y} is larger than some computed horizontal radii (r), "
+                         f"which means no valid points can be sampled at those z levels.")
+
+    # Compute theta_min for all radii
+    theta_min = np.arcsin(min_y / r)
+
+    # Sample theta within the allowed arc [theta_min, π - theta_min]
+    theta = np.random.uniform(theta_min, np.pi - theta_min, size=n_points)
+
+    # Convert to x, y, z using polar to Cartesian conversion
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+
+    z += z_center
+
+    # Stack into final array
+    points = np.column_stack((x, y, z))
+
+    return points
+
+
 def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_rl: DictConfig):
     targets = None
     if 'AC' in env_id:
@@ -298,13 +329,16 @@ def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_r
     elif 'Waypoint' in env_id:
         # randomly sampling a unit vector (direction) in the ENU frame
         # don't sample if y distance is too close from starting point
-        unit_vecs = np.random.uniform(low=[-1, 0.5, -1],
-                                      high=[1, 1, 1],
-                                      size=(cfg_rl.num_envs, 3))
-        unit_vecs /= np.linalg.norm(unit_vecs)
+        # unit_vecs = np.random.uniform(low=[-1, 0.5, -0.2],
+        #                               high=[1, 1, 0.2],
+        #                               size=(cfg_rl.num_envs, 3))
+        # unit_vecs /= np.linalg.norm(unit_vecs)
 
-        # targets are 50m away and z is around the starting altitude at 600m
-        targets_enu = unit_vecs * 50 + np.full((cfg_rl.num_envs, 3), [0, 0, 600])
+        # # targets are 100m away and z is around the starting altitude at 600m
+        # targets_enu = unit_vecs * 100 + np.full((cfg_rl.num_envs, 3), [0, 0, 600])
+
+        targets_enu = constrained_waypoint_sample(cfg_rl.num_envs, radius=50, z_center=600, 
+                                                  min_z=-10, max_z=10, min_y=20)
 
         # Straight line (the waypoint is always at the same x, z and y=50)
         # x_targets = np.full((cfg_rl.num_envs, 1), 0)
