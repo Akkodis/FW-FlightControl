@@ -69,4 +69,9 @@ def parse_cfg(cfg: OmegaConf) -> OmegaConf:
 		cfg.task_dim = 0
 	cfg.tasks = TASK_SET.get(cfg.task, [cfg.task])
 
+	# if we use model-free version, horizon = 1 and no planning (mpc = False)
+	if cfg.model_free:
+		cfg.horizon = 1
+		cfg.mpc = False
+
 	return cfg

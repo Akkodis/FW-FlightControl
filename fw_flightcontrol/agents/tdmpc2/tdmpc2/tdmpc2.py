@@ -92,6 +92,10 @@ class TDMPC2:
 		Returns:
 			torch.Tensor: Action to take in the environment.
 		"""
+		if self.cfg.model_free:
+			assert self.cfg.horizon == 1, 'Model-free version requires horizon=1'
+			assert self.cfg.mpc == False, 'Model-free version requires mpc=False'
+
 		obs = obs.to(self.device, non_blocking=True).unsqueeze(0)
 		if task is not None:
 			task = torch.tensor([task], device=self.device)
@@ -209,7 +213,12 @@ class TDMPC2:
 			ts_loss = F.mse_loss(act, next_act)
 
 		# Loss is a weighted sum of Q-values
-		rho = torch.pow(self.cfg.rho, torch.arange(len(qs), device=self.device))
+		# if cfg.model_free, then rho = (1, 0) to only consider the first Q-value in the pi loss
+		# otherwise, rho = (rho^0, rho^1, ..., rho^(horizon-1))
+		if self.cfg.model_free:
+			rho = torch.tensor([1.0, 0.0], device=self.device)
+		else:
+			rho = torch.pow(self.cfg.rho, torch.arange(len(qs), device=self.device))
 		pi_loss = ((self.cfg.entropy_coef * log_pis - qs).mean(dim=(1,2)) * rho).mean() + self.cfg.ts_coef * ts_loss
 		pi_loss.backward()
 		torch.nn.utils.clip_grad_norm_(self.model._pi.parameters(), self.cfg.grad_clip_norm)
@@ -250,7 +259,11 @@ class TDMPC2:
 		# obs: shape (horizon+1, batch_size, obs_dim), obs[0] is the current initial observation
 		# action: shape (horizon, batch_size, action_dim)
 		# reward: shape (horizon, batch_size, 1)
-	
+		# terminated: shape (batch_size, 1)
+
+		if self.cfg.model_free:
+			assert self.cfg.horizon == 1, 'Model-free version requires horizon=1'
+
 		# Compute targets
 		with torch.no_grad():
 			z_buf = self.model.encode(obs, task) # get the latent state of the next observations in the horizon
@@ -262,7 +275,7 @@ class TDMPC2:
 		self.model.train()
 
 		# Decoder loss, in case it's separated from the forward horizon loss
-		decoder_loss = 0
+		decoder_loss = torch.tensor(0., device=self.device)
 		if self.cfg.use_decoder:
 			obs_pred = self.model.decode(z_buf, task)
 			decoder_loss = F.mse_loss(obs_pred, obs)
@@ -271,25 +284,34 @@ class TDMPC2:
 		zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
 		z = self.model.encode(obs[0], task)
 		zs[0] = z
-		consistency_loss = 0
-		for t in range(self.cfg.horizon):
-			z = self.model.next(z, action[t], task)
-			consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
-			zs[t+1] = z
+		consistency_loss = torch.tensor(0., device=self.device)
+		if not self.cfg.model_free:
+			for t in range(self.cfg.horizon):
+				z = self.model.next(z, action[t], task)
+				consistency_loss += F.mse_loss(z, next_z[t]) * self.cfg.rho**t
+				zs[t+1] = z
+		else:
+			zs[1] = self.model.encode(obs[1], task)
 
 		# Predictions
 		_zs = zs[:-1]
 		qs = self.model.Q(_zs, action, task, return_type='all')
 		reward_preds = self.model.reward(_zs, action, task)
-		terminated_pred = self.model.terminated(zs[-1], task)
 		
 		# Compute losses
-		reward_loss, value_loss = 0, 0
+		terminated_loss = torch.tensor(0., device=self.device)
+		# model-free version doesn't have a termination model since we don't need
+		# to predict if the last latent state is terminal for action selection
+		if not self.cfg.model_free: 
+			terminated_pred = self.model.terminated(zs[-1], task)
+			terminated_loss = F.binary_cross_entropy(terminated_pred, terminated)
+
+		reward_loss, value_loss = torch.tensor(0., device=self.device), torch.tensor(0., device=self.device)
 		for t in range(self.cfg.horizon):
-			reward_loss += math.soft_ce(reward_preds[t], reward[t], self.cfg).mean() * self.cfg.rho**t
+			if not self.cfg.model_free:
+				reward_loss += math.soft_ce(reward_preds[t], reward[t], self.cfg).mean() * self.cfg.rho**t
 			for q in range(self.cfg.num_q):
 				value_loss += math.soft_ce(qs[q][t], td_targets[t], self.cfg).mean() * self.cfg.rho**t
-		terminated_loss = F.binary_cross_entropy(terminated_pred, terminated)
 		consistency_loss *= (1/self.cfg.horizon)
 		decoder_loss *= (1/self.cfg.horizon+1)
 		reward_loss *= (1/self.cfg.horizon)
@@ -317,7 +339,7 @@ class TDMPC2:
 		self.model.eval()
 		return {
 			"consistency_loss": float(consistency_loss.mean().item()),
-			"decoder_loss": float(decoder_loss.mean().item()) if self.cfg.use_decoder else 0,
+			"decoder_loss": float(decoder_loss.mean().item()),
 			"reward_loss": float(reward_loss.mean().item()),
 			"terminated_loss": float(terminated_loss.mean().item()),
 			"value_loss": float(value_loss.mean().item()),

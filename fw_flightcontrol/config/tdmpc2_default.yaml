@@ -49,6 +49,7 @@ rl:
     ts_coef: 0.0
 
     # planning
+    model_free: false
     mpc: true
     iterations: 6
     num_samples: 512
