@@ -18,5 +18,5 @@ def make_env(cfg):
 
     print("observation space: ", env.observation_space.shape)
     print("action space: ", env.action_space.shape)
-
+    env.init()
     return env
