@@ -49,9 +49,9 @@ attitude_seq: np.ndarray = np.array([
 
 # Waypoint Tracking sequence for the periodic evaluation
 waypoint_seq: np.ndarray = np.array([       # x, y, z
-                                        [1.88, 49.1, 609.256],
+                                        [1.88, -49.1, 609.256],
                                         [-4.027, 49.837, 600.229],
-                                        [29.338, 39.304, 590.279],
+                                        [29.338, -39.304, 590.279],
                                         [-37.94, 31.081, 609.722],
                                         [-29.219, 39.939, 592.849]
                                     ])
@@ -288,23 +288,26 @@ def make_env(env_id, cfg_env, render_mode, telemetry_file=None, eval=False, gamm
     return thunk
 
 
-def constrained_waypoint_sample(n_points, radius=50, z_center=600, min_z=-15, max_z=15, min_y=20):
+def constrained_waypoint_sample(n_points, radius=50, z_center=600, min_z=-10, max_z=10, min_y=None):
     # Sample all z values at once
     z = np.random.uniform(min_z, max_z, size=n_points)
 
     # Compute horizontal radii r for all z values
     r = np.sqrt(radius**2 - z**2)
 
-    # Check if min_y is geometrically possible (should never fail for [-15, 15] on a 50m sphere, but good practice)
-    if np.any(min_y > r):
-        raise ValueError(f"min_y={min_y} is larger than some computed horizontal radii (r), "
-                         f"which means no valid points can be sampled at those z levels.")
+    if min_y is not None:
+        # Check if min_y is geometrically possible
+        if np.any(min_y > r):
+            raise ValueError(f"min_y={min_y} is larger than some computed horizontal radii (r), "
+                             f"which means no valid points can be sampled at those z levels.")
 
-    # Compute theta_min for all radii
-    theta_min = np.arcsin(min_y / r)
-
-    # Sample theta within the allowed arc [theta_min, π - theta_min]
-    theta = np.random.uniform(theta_min, np.pi - theta_min, size=n_points)
+        # Compute theta_min for all radii
+        theta_min = np.arcsin(min_y / r)
+        # Sample theta within the allowed arc [theta_min, π - theta_min]
+        theta = np.random.uniform(theta_min, np.pi - theta_min, size=n_points)
+    else:
+        # Sample theta uniformly from 0 to 2*pi when no min_y constraint is provided
+        theta = np.random.uniform(0, 2*np.pi, size=n_points)
 
     # Convert to x, y, z using polar to Cartesian conversion
     x = r * np.cos(theta)
@@ -338,7 +341,7 @@ def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_r
         # targets_enu = unit_vecs * 100 + np.full((cfg_rl.num_envs, 3), [0, 0, 600])
 
         targets_enu = constrained_waypoint_sample(cfg_rl.num_envs, radius=50, z_center=600, 
-                                                  min_z=-10, max_z=10, min_y=20)
+                                                  min_z=-10, max_z=10, min_y=None)
 
         # Straight line (the waypoint is always at the same x, z and y=50)
         # x_targets = np.full((cfg_rl.num_envs, 1), 0)
