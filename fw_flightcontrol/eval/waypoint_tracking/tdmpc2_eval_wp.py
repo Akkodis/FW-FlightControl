@@ -6,7 +6,6 @@ import hydra
 import random
 import matplotlib.pyplot as plt
 from fw_jsbgym.trim.trim_point import TrimPoint
-from fw_jsbgym.utils import conversions
 
 sys.path.append(f'{os.path.dirname(os.path.abspath(__file__))}/../../agents/tdmpc2/tdmpc2/')
 
@@ -14,121 +13,124 @@ from omegaconf import DictConfig
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.parser import parse_cfg
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.envs import make_env
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
+from fw_flightcontrol.eval.waypoint_tracking.utils import eval_sim, metrics
 
 
 @hydra.main(version_base=None, config_path="../../config", config_name="tdmpc2_default")
 def eval(cfg: DictConfig):
+    """Main evaluation function"""
+    # Setup environment and device
     np.set_printoptions(precision=3)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"**** Using Device: {device} ****")
 
-    # seeding
-    seed = 10
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-
+    # Parse config
     cfg.rl = parse_cfg(cfg.rl)
     os.chdir(hydra.utils.get_original_cwd())
 
-    # shorter cfg aliases
+    # Shorter cfg aliases
     cfg_rl = cfg.rl
     cfg_sim = cfg.env.jsbsim
 
-    # env setup
+    # Environment setup
     env = make_env(cfg)
-    state_names = list(prp.get_legal_name() for prp in env.state_prps)
-
     trim = TrimPoint('x8')
-    trim_action = torch.tensor([trim.aileron, trim.elevator, trim.throttle])
 
     # Load agent
     agent = TDMPC2(cfg.rl)
     assert os.path.exists(cfg.rl.checkpoint), f"Checkpoint {cfg.rl.checkpoint} not found! Must be a valid filepath."
     agent.load(cfg.rl.checkpoint)
 
-    obs, _ = env.reset(options=cfg_sim.eval_sim_options)
-    ep_obss = [obs.cpu().detach().numpy()]
+    # get the checkpoint file name (without the parent directories, and the .pt at the end)
+    checkpoint_name = '_'.join(cfg.rl.checkpoint.split('/')[-1].split('_'))[:-3]
+    print(f"**** Using Checkpoint: {checkpoint_name} ****")
 
-    ep_rewards = [0]
-    enu_xs = [env.unwrapped.sim['position/enu-x-m']]
-    enu_ys = [env.unwrapped.sim['position/enu-y-m']]
-    enu_zs = [env.unwrapped.sim['position/enu-z-m']]
-    step, t = 0, 0
-    target_enu = np.array([0, 300, 600])
-    target = conversions.enu2ecef(*target_enu,
-                                  env.unwrapped.sim['ic/lat-geod-deg'],
-                                  env.unwrapped.sim['ic/long-gc-deg'],
-                                  0.0)
-    total_steps = 2000
+    # Load seeds and determine severity levels
+    jsbsim_seeds = np.load(f'eval/waypoint_tracking/targets/jsbsim_seeds.npy')
+    
+    if cfg_sim.eval_sim_options.atmosphere.severity == "all":
+        severity_range = ["off", "light", "moderate", "severe"]
+    else:
+        severity_range = [cfg_sim.eval_sim_options.atmosphere.severity]
 
-    while step < total_steps:
-        env.set_target_state(target)
-        # action = trim_action
-        action = agent.act(obs, t0=t==0, eval_mode=True)
-        obs, reward, term, trunc, info = env.step(action)
-        ep_obss.append(obs.cpu().detach().numpy())
-        ep_rewards.append(reward.cpu().detach().numpy())
-        enu_xs.append(env.unwrapped.sim['position/enu-x-m'])
-        enu_ys.append(env.unwrapped.sim['position/enu-y-m'])
-        enu_zs.append(env.unwrapped.sim['position/enu-z-m'])
-        done = np.logical_or(term, trunc)
-        t += 1
-        step += 1
+    atmo_type: str = 'noatmo'
+    if cfg_sim.eval_sim_options.atmosphere.turb.enable:
+        atmo_type = 'turb'
+    if cfg_sim.eval_sim_options.atmosphere.gust.enable:
+        atmo_type = 'gusts'
+    if cfg_sim.eval_sim_options.atmosphere.wind.enable and not cfg_sim.eval_sim_options.atmosphere.turb.enable:
+        atmo_type = 'wind'
+        severity_range = ["off", "wind_5kph", "wind_10kph", "wind_20kph", "wind_30kph"]
+        # severity_range = ["off", "wind_10kph"]
+    print(f"**** Using Atmosphere Type: {atmo_type} ****")
 
-        if done:
-            t = 0
-            print(f"Episode reward: {info['episode']['r']}")
-            print(f"******* {step}/{total_steps} *******")
-            break
+    # save simulated episodes to a single numpy file
+    npz_file = f'eval/waypoint_tracking/outputs/eval_trajs/{atmo_type}_{checkpoint_name}.npz'
 
-    env.close()
+    # Load and prepare targets
+    targets_np_file = 'eval/waypoint_tracking/targets/target_points360.npy'
+    targets_enu = np.load(targets_np_file)
+    # targets_enu = targets_enu[:4, :]
+    targets_ecef = eval_sim.prepare_targets(env, targets_enu, cfg_rl)
 
-    ep_obss = np.array(ep_obss)
-    ep_rewards = np.array(ep_rewards)
-    enu_xs = np.array(enu_xs)
-    enu_ys = np.array(enu_ys)
-    enu_zs = np.array(enu_zs)
-    errs_x, errs_y, errs_z = ep_obss[:, 0], ep_obss[:, 1], ep_obss[:, 2]
-    dist_to_target = np.sqrt(errs_x**2 + errs_y**2 + errs_z**2)
-    tsteps = np.linspace(0, ep_obss.shape[0], ep_obss.shape[0])
-    fig, ax = plt.subplots(2, 3)
+    if cfg_rl.eval.run_eval_sims:
+        # Run all simulations
+        enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success = eval_sim.run_simulations(
+            env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_sim
+        )
 
-    ax[0, 0].plot(tsteps, np.rad2deg(ep_obss[:, 3]), label='roll')
-    ax[0, 0].plot(tsteps, np.rad2deg(ep_obss[:, 4]), label='pitch')
-    ax[0, 0].set_title('Roll and Pitch [deg]')
-    ax[0, 0].legend()
+        np.savez(
+            npz_file, 
+            enu_positions=enu_positions, 
+            orientations=orientations,
+            wind_vector=wind_vector,
+            ep_fcs_fluct=ep_fcs_fluct, 
+            target_success=target_success
+        )
 
-    ax[0, 1].plot(tsteps, ep_obss[:, 5])
-    ax[0, 1].set_title('Airspeed [kph]')
+        # Close environment
+        env.close()
 
-    ax[0, 2].remove()
-    ax[0, 2] = fig.add_subplot(2, 3, 3, projection='3d')
-    ax[0, 2].set_xlim(enu_xs.min()-10, enu_xs.max()+10)
-    ax[0, 2].set_ylim(enu_ys.min()-10, enu_ys.max()+10)
-    ax[0, 2].set_zlim(enu_zs.min()-10, enu_zs.max()+10)
-    ax[0, 2].set_xlabel("X")
-    ax[0, 2].set_ylabel("Y")
-    ax[0, 2].set_zlabel("Z")
-    for i in range(ep_obss.shape[0] - 1):
-        ax[0,2].plot(enu_xs[i:i+2], enu_ys[i:i+2], enu_zs[i:i+2], c=plt.cm.plasma(i/enu_xs.shape[0]))
+    # Read trajs from the saved npz file
+    npz_data = np.load(npz_file)
+    enu_positions = npz_data['enu_positions']
+    orientations = npz_data['orientations']
+    wind_vector = npz_data['wind_vector']
+    ep_fcs_fluct = npz_data['ep_fcs_fluct']
+    target_success = npz_data['target_success']
 
-    ax[1, 0].plot(tsteps, dist_to_target)
-    ax[1, 0].set_title('Distance to Target [m]')
+    # Compute metrics
+    total_targets, success_percent, success_dict = metrics.compute_target_success(
+        target_success, severity_range
+    )
+    
+    avg_fcs_fluct = metrics.compute_fcs_fluctuation(
+        ep_fcs_fluct, severity_range
+    )
+    
+    _, avg_distance = metrics.compute_distance(
+        enu_positions, severity_range, targets_enu.shape[0]
+    )
+    
+    _, avg_time = metrics.compute_time(
+        enu_positions, severity_range, targets_enu.shape[0], env.fdm_dt
+    )
+    
+    # Save metrics to CSV
+    csv_filename = f"eval/waypoint_tracking/outputs/metrics/{atmo_type}_{checkpoint_name}.csv"
+    csv_file = metrics.save_metrics_summary(
+        csv_filename,
+        severity_range, total_targets, success_dict, success_percent, 
+        avg_fcs_fluct, avg_distance, avg_time
+    )
 
-    ax[1, 1].plot(tsteps, ep_rewards)
-    ax[1, 1].set_title('Rewards')
-
-    ax[1, 2].plot(tsteps, ep_obss[:, 11], label='aileron')
-    ax[1, 2].plot(tsteps, ep_obss[:, 12], label='elevator')
-    ax[1, 2].plot(tsteps, ep_obss[:, 13], label='throttle')
-    ax[1, 2].set_title('Control Inputs')
-    ax[1, 2].legend()
-
-    print(f"Last position: X:{enu_xs[-1]}, Y:{enu_ys[-1]}, Z:{enu_zs[-1]}")
-
-    plt.show()
+    # Plot trajectories if requested
+    if cfg_rl.eval.plot_trajs:
+        fig = metrics.plot_trajectories_plotly(
+            enu_positions, orientations, wind_vector, targets_enu, 
+            target_success, severity_range, cfg_rl.eval.plot_frames
+        )
+        plt.show()
 
 if __name__ == '__main__':
     eval()
