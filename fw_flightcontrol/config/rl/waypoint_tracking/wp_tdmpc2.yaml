@@ -1,0 +1,47 @@
+### TDMPC2 config ###
+# environment
+task: WaypointTracking
+obs: state
+
+# training
+steps: 1_500_000
+
+# eval during training
+periodic_eval: true
+eval_freq: 37_500 # This will make 20 evaluations points
+eval_episodes: ??? # this value is overwritten by the size of the reference sequence in the code
+final_traj_plot: true # simulate a final trajectory at the end of training (for visualization + log in wandb)
+
+# standalone eval
+eval:
+    ref_file: target_points360.npy
+    plot_trajs: false
+    plot_frames: false
+    compute_metrics: true
+    run_eval_sims: true
+    evaluated_traj_file: ???
+    metrics_file: ???
+    im_traj: false
+    dec_obs: false
+
+# logging
+wandb_project: uav_rl
+wandb_entity: thesedavid
+wandb_silent: false
+disable_wandb: false
+
+# arch
+use_enc: true
+use_decoder: false
+gaussian_dyn: false
+
+# misc
+save_agent: true
+seed: 10
+render_mode: 'none'
+
+# CAPS
+use_caps: false
+ts_coef: 0.0
+
+num_envs: 1 # number of parallel environments (tdmpc2 only support 1 atm)

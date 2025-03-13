@@ -1,6 +1,6 @@
 defaults:
     - _self_
-    - rl: ac_tdmpc2
+    - rl: waypoint_tracking/wp_tdmpc2
     - env/jsbsim: noatmo
     - env/task/mdp: no_hist_all
     - env/task/reward: ac_actvar
