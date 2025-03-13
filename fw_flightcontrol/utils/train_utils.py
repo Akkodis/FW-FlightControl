@@ -321,11 +321,11 @@ def constrained_waypoint_sample(n_points, radius=50, z_center=600, min_z=-10, ma
     return points
 
 
-def sample_targets(single_target: bool, env_id: str, env, cfg: DictConfig, cfg_rl: DictConfig):
+def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
     targets = None
     if 'AC' in env_id:
-        roll_high = np.full((cfg_rl.num_envs, 1), np.deg2rad(cfg.roll_limit))
-        pitch_high = np.full((cfg_rl.num_envs, 1), np.deg2rad(cfg.pitch_limit))
+        roll_high = np.full((cfg_rl.num_envs, 1), np.deg2rad(cfg_rl.roll_limit))
+        pitch_high = np.full((cfg_rl.num_envs, 1), np.deg2rad(cfg_rl.pitch_limit))
         roll_targets = np.random.uniform(-roll_high, roll_high)
         pitch_targets = np.random.uniform(-pitch_high, pitch_high)
         targets = np.hstack((roll_targets, pitch_targets))
