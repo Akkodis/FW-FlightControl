@@ -31,14 +31,14 @@ def eval(cfg: DictConfig):
     cfg_task = cfg.env.task
 
     # env setup
-    env = make_env('WaypointTracking-v0', cfg.env, cfg_sim.render_mode, 
+    env = make_env('WaypointVaTracking-v0', cfg.env, cfg_sim.render_mode, 
                    'telemetry/telemetry.csv', eval=True)()
 
     # loading the agent
-    # train_dict = torch.load(cfg.model_path, map_location=device)[0] # only load the actor's state dict
-    # sac_agent = Actor_SAC(env).to(device)
-    # sac_agent.load_state_dict(train_dict)
-    # sac_agent.eval()
+    train_dict = torch.load(cfg.model_path, map_location=device)[0] # only load the actor's state dict
+    sac_agent = Actor_SAC(env).to(device)
+    sac_agent.load_state_dict(train_dict)
+    sac_agent.eval()
 
     trim = TrimPoint('x8')
     trim_action = np.array([trim.aileron, trim.elevator, trim.throttle])
@@ -57,12 +57,14 @@ def eval(cfg: DictConfig):
                                   env.unwrapped.sim['ic/lat-geod-deg'],
                                   env.unwrapped.sim['ic/long-gc-deg'],
                                   0.0)
+    target = np.hstack((target, np.array([60.0])))
     total_steps = 2000
 
     while step < total_steps:
         env.set_target_state(target)
-        action = trim_action
-        # action = sac_agent.get_action(torch.Tensor(obs).unsqueeze(0).to(device))[2].squeeze_().detach().cpu().numpy()
+        # action = trim_action
+        action = sac_agent.get_action(torch.Tensor(obs).unsqueeze(0).to(device))[2].squeeze_().detach().cpu().numpy()
+        action = env.action_space.sample()
         obs, reward, terminated, truncated, info = env.step(action)
         ep_obss.append(obs)
         ep_rewards.append(reward)
@@ -79,7 +81,6 @@ def eval(cfg: DictConfig):
 
             print(f"Episode reward: {info['episode']['r']}")
             print(f"******* {step}/{total_steps} *******")
-            break
             obs, last_info = env.reset()
         step += 1
     env.close()
@@ -126,8 +127,6 @@ def eval(cfg: DictConfig):
     ax[1, 2].legend()
 
     print(f"Last position: X:{enu_xs[-1]}, Y:{enu_ys[-1]}, Z:{enu_zs[-1]}")
-
-    plt.show() 
 
 
 if __name__ == '__main__':
