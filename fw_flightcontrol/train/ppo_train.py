@@ -116,7 +116,7 @@ def train(cfg: DictConfig):
     next_terminated = torch.zeros(cfg_ppo.num_envs).to(device)
     num_updates = cfg_ppo.total_timesteps // cfg_ppo.batch_size
 
-    targets = train_utils.sample_targets(False, cfg_ppo.env_id, cfg, cfg_ppo)
+    targets = train_utils.sample_targets(False, cfg_ppo.env_id, cfg_ppo)
 
     for update in tqdm(range(1, num_updates + 1)):
         # Annealing the rate if instructed to do so.
@@ -177,7 +177,7 @@ def train(cfg: DictConfig):
             for env_i, done in enumerate(dones):
                 if done:
                     obs_t1[step][env_i] = obs[step][env_i]
-                    targets[env_i] = train_utils.sample_targets(True, cfg_ppo.env_id, cfg, cfg_ppo)
+                    targets[env_i] = train_utils.sample_targets(True, cfg_ppo.env_id, cfg_ppo)
                     # if cfg_ppo.ref_sampler == "beta":
                     #     if cfg_ppo.beta_params is not None:
                     #         roll_targets[env_i] = np.random.beta(cfg_ppo.beta_params[0], cfg_ppo.beta_params[1]) * roll_limit*2 - roll_limit

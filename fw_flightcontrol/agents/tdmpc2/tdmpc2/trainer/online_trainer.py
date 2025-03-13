@@ -85,7 +85,7 @@ class OnlineTrainer(Trainer):
 				# reset the environment with training options
 				obs, info = self.env.reset(options=self.cfg_all.env.jsbsim.train_sim_options)
 				self._tds = [self.to_td(obs)]
-				targets = train_utils.sample_targets(True, env_id, self.env, self.cfg_all, self.cfg_all.rl)
+				targets = train_utils.sample_targets(True, env_id, self.env, self.cfg_all.rl)
 				if 'AC' in env_id:
 					print(f"-- Env done, new targets : "\
 						f"roll = {np.rad2deg(targets[0]):.3f}, "\

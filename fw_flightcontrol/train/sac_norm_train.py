@@ -119,7 +119,7 @@ def train(cfg: DictConfig):
     obs, _ = envs.reset(options=cfg_sim.train_sim_options)
 
     # initial roll and pitch references
-    targets = train_utils.sample_targets(True, cfg_sac.env_id, envs.envs[0], cfg, cfg_sac)
+    targets = train_utils.sample_targets(True, cfg_sac.env_id, envs.envs[0], cfg_sac)
     global_step = 0
     prev_gl_step = 0
 
@@ -149,7 +149,7 @@ def train(cfg: DictConfig):
 
         done = np.logical_or(terminations, truncations)
         if done:
-            targets = train_utils.sample_targets(True, cfg_sac.env_id, envs.envs[0], cfg, cfg_sac)
+            targets = train_utils.sample_targets(True, cfg_sac.env_id, envs.envs[0], cfg_sac)
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         if "final_info" in infos:
