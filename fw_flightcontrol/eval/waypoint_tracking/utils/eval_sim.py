@@ -1,11 +1,13 @@
 import numpy as np
+import torch
 from fw_jsbgym.utils import conversions
 from fw_jsbgym.utils import jsbsim_properties as prp
 
 
-def prepare_targets(env, targets_enu, cfg_rl):
+def prepare_targets(env, targets_enu, cfg_rl, pid=False):
     """Prepare target coordinates for simulation"""
     targets_ecef = np.zeros_like(targets_enu)
+    pid_targets = None
     for i, target_enu in enumerate(targets_enu):
         targets_ecef[i] = conversions.enu2ecef(*target_enu,
                                               env.unwrapped.sim['ic/lat-geod-deg'],
@@ -14,10 +16,98 @@ def prepare_targets(env, targets_enu, cfg_rl):
 
     if cfg_rl.task == 'WaypointVaTracking':
         targets_ecef = np.hstack((targets_ecef, np.array([60.0])))
+    
+    if pid:
+        pid_targets = prepare_pid_targets(env, targets_enu)
         
-    return targets_ecef
+    return targets_ecef, pid_targets
 
-def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_sim):
+
+def prepare_pid_targets(env, targets_enu):
+    """Prepare target coordinates for PID simulation"""
+    pid_targets: list[dict[str, float]] = [{} for _ in range(len(targets_enu))]
+    for i, target_enu in enumerate(targets_enu):
+        print(f"Target ENU: {target_enu}")
+        course_target = np.arctan2(target_enu[0], target_enu[1])
+        altitude_target = target_enu[2]
+        airspeed_target = 60.0
+        pid_targets[i] = {
+            'course_target': course_target,
+            'altitude_target': altitude_target,
+            'airspeed_target': airspeed_target
+        }
+    print(f"PID Targets: {np.array(pid_targets)}")
+    return np.array(pid_targets)
+
+
+def pid_action(agent, env, pid_targets, ep_cnt) -> torch.Tensor:
+    # print(f"Target NED: x: {env.unwrapped.sim[prp.target_ned_x_m]}, "\
+    #                 f"y: {env.unwrapped.sim[prp.target_ned_y_m]}, "\
+    #                 f"z: {env.unwrapped.sim[prp.target_ned_z_m]}")
+
+    # Longitudinal control
+    # setting PID references
+    agent["altitude_pid"].set_reference(pid_targets[ep_cnt]['altitude_target'])
+    agent["airspeed_pid"].set_reference(pid_targets[ep_cnt]['airspeed_target'])
+     # airspeed -> throttle
+    throttle, _, _ = agent["airspeed_pid"].update(state=env.unwrapped.sim[prp.airspeed_kph], 
+                                                    saturate=True)
+    # get actions from PIDs
+    # altitude -> pitch -> elevator
+    pitch_ref, _, _ = agent["altitude_pid"].update(state=env.unwrapped.sim[prp.enu_z_m], 
+                                                    saturate=True)
+    agent["pitch_pid"].set_reference(pitch_ref)
+    elevator_cmd, _, _ = agent["pitch_pid"].update(state=env.unwrapped.sim[prp.pitch_rad],
+                                                    state_dot=env.unwrapped.sim[prp.q_radps],
+                                                    saturate=True, normalize=True)
+    # Lateral control
+    # course -> roll -> aileron
+    # cross track error
+    xi_q = pid_targets[ep_cnt]['course_target'] # course angle of the target waypoint
+    xi_uav = (np.arctan2(env.unwrapped.sim[prp.v_east_fps], env.unwrapped.sim[prp.v_north_fps])) # course angle of the UAV
+    uav_x_n = env.unwrapped.sim[prp.enu_y_m]
+    uav_y_e = env.unwrapped.sim[prp.enu_x_m]
+    wp_prev_x_n = 0.0
+    wp_prev_y_e = 0.0
+    # e_c = (uav_x_n - wp_prev_x_n) * np.sin(pid_targets[ep_cnt]['course_target']) \
+    #       - (uav_y_e - wp_prev_y_e) * np.cos(pid_targets[ep_cnt]['course_target'])
+    if xi_q - xi_uav < -np.pi:
+        xi_q = xi_q + 2*np.pi
+    elif xi_q - xi_uav > np.pi:
+        xi_q = xi_q - 2*np.pi
+    e_c = -np.sin(xi_q) * (uav_x_n - wp_prev_x_n) + np.cos(xi_q) * (uav_y_e - wp_prev_y_e)
+    course_desired = xi_q - np.arctan2(e_c, 5.0)
+    # print(f"Course Desired: {course_desired}")
+    agent["course_pid"].set_reference(course_desired)
+
+    ######
+    # xi_q = pid_targets[ep_cnt]['course_target'] # course angle of the target waypoint
+    # xi_uav = (np.arctan2(env.unwrapped.sim[prp.v_east_fps], env.unwrapped.sim[prp.v_north_fps])) # course angle of the UAV
+    # print(f"Course Angle: {xi_uav}")
+    # if xi_q - xi_uav < -np.pi:
+    #     xi_q = xi_q + 2*np.pi
+    # elif xi_q - xi_uav > np.pi:
+    #     xi_q = xi_q - 2*np.pi
+    # p_n = env.unwrapped.sim[prp.enu_y_m]
+    # p_e = env.unwrapped.sim[prp.enu_x_m]
+    # e_py = -np.sin(xi_q) * (p_n) + np.cos(xi_q) * (p_e)
+    # xi_ref = xi_q - 
+
+
+    roll_ref, error_course, _ = agent["course_pid"].update(state=xi_uav, 
+                                                saturate=True, is_course=False)
+    # print(f"Course Error: {error_course}")
+    # print("*********")
+    agent["roll_pid"].set_reference(roll_ref)
+    aileron_cmd, _, _ = agent["roll_pid"].update(state=env.unwrapped.sim[prp.roll_rad],
+                                                    state_dot=env.unwrapped.sim[prp.p_radps],
+                                                    saturate=True, normalize=True)
+
+    action = torch.Tensor([aileron_cmd, elevator_cmd, throttle])
+    return action
+
+
+def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_sim, pid_targets=None, trim=None):
     """Run simulations for all severity levels and episodes"""
     num_ep = targets_ecef.shape[0]
     total_num_ep = len(severity_range) * num_ep
@@ -61,7 +151,12 @@ def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_
             while True:
                 # Set target and get action
                 env.set_target_state(target_ecef)
-                action = agent.act(obs, t0=t==0, eval_mode=True)
+                if isinstance(agent, dict) and pid_targets is not None:
+                    action = pid_action(agent, env, pid_targets, ep_cnt)
+                else:
+                    action = agent.act(obs, t0=t==0, eval_mode=True)
+
+                # action = torch.Tensor([trim.aileron, trim.elevator, trim.throttle])
 
                 # Record position and orientation
                 enu_positions[sev_cnt, ep_cnt, t] = [
@@ -100,5 +195,5 @@ def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_
                         np.abs(np.diff(ep_fcs_pos_hist, axis=0)), axis=0
                     )
                     break
-    
+
     return enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success
