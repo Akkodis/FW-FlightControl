@@ -69,32 +69,19 @@ def pid_action(agent, env, pid_targets, ep_cnt) -> torch.Tensor:
     uav_y_e = env.unwrapped.sim[prp.enu_x_m]
     wp_prev_x_n = 0.0
     wp_prev_y_e = 0.0
-    # e_c = (uav_x_n - wp_prev_x_n) * np.sin(pid_targets[ep_cnt]['course_target']) \
-    #       - (uav_y_e - wp_prev_y_e) * np.cos(pid_targets[ep_cnt]['course_target'])
+
     if xi_q - xi_uav < -np.pi:
         xi_q = xi_q + 2*np.pi
     elif xi_q - xi_uav > np.pi:
         xi_q = xi_q - 2*np.pi
     e_c = -np.sin(xi_q) * (uav_x_n - wp_prev_x_n) + np.cos(xi_q) * (uav_y_e - wp_prev_y_e)
-    course_desired = xi_q - np.arctan2(e_c, 5.0)
+    xi_inf = np.pi / 3
+    k_path = 1.0
+    course_desired = xi_q - xi_inf * 2 / np.pi * np.arctan(k_path * e_c)
     # print(f"Course Desired: {course_desired}")
     agent["course_pid"].set_reference(course_desired)
 
-    ######
-    # xi_q = pid_targets[ep_cnt]['course_target'] # course angle of the target waypoint
-    # xi_uav = (np.arctan2(env.unwrapped.sim[prp.v_east_fps], env.unwrapped.sim[prp.v_north_fps])) # course angle of the UAV
-    # print(f"Course Angle: {xi_uav}")
-    # if xi_q - xi_uav < -np.pi:
-    #     xi_q = xi_q + 2*np.pi
-    # elif xi_q - xi_uav > np.pi:
-    #     xi_q = xi_q - 2*np.pi
-    # p_n = env.unwrapped.sim[prp.enu_y_m]
-    # p_e = env.unwrapped.sim[prp.enu_x_m]
-    # e_py = -np.sin(xi_q) * (p_n) + np.cos(xi_q) * (p_e)
-    # xi_ref = xi_q - 
-
-
-    roll_ref, error_course, _ = agent["course_pid"].update(state=xi_uav, 
+    roll_ref, error_course, _ = agent["course_pid"].update(state=xi_uav,
                                                 saturate=True, is_course=False)
     # print(f"Course Error: {error_course}")
     # print("*********")
