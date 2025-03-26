@@ -50,7 +50,7 @@ def eval(cfg: DictConfig):
                     dt=env.fdm_dt, limit=x8.aileron_limit)
 
     # outer loop
-    kp_course: float = 0.6 # default 0.4
+    kp_course: float = 0.65 # default 0.4
     ki_course: float = 0.0 # default 0.0
     course_pid: PID = PID(kp=kp_course, ki=ki_course,
                      dt=env.fdm_dt, limit=x8.roll_max)

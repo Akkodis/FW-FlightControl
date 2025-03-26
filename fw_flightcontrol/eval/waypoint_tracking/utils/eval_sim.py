@@ -75,16 +75,14 @@ def pid_action(agent, env, pid_targets, ep_cnt) -> torch.Tensor:
     elif xi_q - xi_uav > np.pi:
         xi_q = xi_q - 2*np.pi
     e_c = -np.sin(xi_q) * (uav_x_n - wp_prev_x_n) + np.cos(xi_q) * (uav_y_e - wp_prev_y_e)
-    xi_inf = np.pi / 3
-    k_path = 1.0
+    xi_inf = np.pi/2
+    k_path = 0.01
     course_desired = xi_q - xi_inf * 2 / np.pi * np.arctan(k_path * e_c)
-    # print(f"Course Desired: {course_desired}")
     agent["course_pid"].set_reference(course_desired)
 
     roll_ref, error_course, _ = agent["course_pid"].update(state=xi_uav,
                                                 saturate=True, is_course=False)
-    # print(f"Course Error: {error_course}")
-    # print("*********")
+
     agent["roll_pid"].set_reference(roll_ref)
     aileron_cmd, _, _ = agent["roll_pid"].update(state=env.unwrapped.sim[prp.roll_rad],
                                                     state_dot=env.unwrapped.sim[prp.p_radps],
