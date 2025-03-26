@@ -68,7 +68,7 @@ def eval(cfg: DictConfig):
     npz_file = f'eval/waypoint_tracking/outputs/eval_trajs/{atmo_type}_{checkpoint_name}.npz'
 
     # Load and prepare targets
-    targets_np_file = 'eval/waypoint_tracking/targets/target_points360.npy'
+    targets_np_file = 'eval/waypoint_tracking/targets/target_points360_200m.npy'
     targets_enu = np.load(targets_np_file)
     # targets_enu = targets_enu[:4, :]
     targets_ecef = eval_sim.prepare_targets(env, targets_enu, cfg_rl)
