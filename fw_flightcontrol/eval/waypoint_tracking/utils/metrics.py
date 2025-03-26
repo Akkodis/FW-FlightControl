@@ -221,12 +221,12 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
             scale_factor = 10.0  # Adjust this value to make the arrow an appropriate size
         
             # Place the wind vector at a visible location in the plot
-            # Using the first position of the first episode as reference
+            # Using the target position
             start_pos = enu_positions[sev_cnt, 0, 0, :]
         
             # Plot wind vector as an arrow
             ax.quiver(
-                start_pos[0], start_pos[1], start_pos[2],  # starting position
+                targets_enu[i, 0], targets_enu[i, 1], targets_enu[i, 2],  # starting position
                 wind_vector_enu[0], wind_vector_enu[1], wind_vector_enu[2],  # direction
                 color='cyan', 
                 linewidth=2,
@@ -260,15 +260,12 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
                     ax.quiver(x, y, z, *z_axis, color='blue')
         
         # Set axis properties
-        # invert X axis since North should point left
-        ax.invert_xaxis()
-
-        ax.set_xlim(50, -50)
-        ax.set_ylim(-50, 50)
-        ax.set_zlim(585, 615)
-        ax.set_xlabel('X/ENU-East/NED-North')
-        ax.set_ylabel('Y/ENU-North/NED-East')
-        ax.set_zlabel('Z/ENU-Up/NED-Down')
+        ax.set_xlim(-200, 200)
+        ax.set_ylim(-200, 200)
+        ax.set_zlim(565, 635)
+        ax.set_xlabel('E')
+        ax.set_ylabel('N')
+        ax.set_zlabel('U')
         ax.set_title(f'3D Trajectories - {severity}')
         ax.grid()
     
@@ -512,15 +509,15 @@ def plot_trajectories_plotly(enu_positions, orientations, wind_vector, targets_e
                         ),
                         row=row_idx, col=col_idx
                     )
-    
+
     # Configure the layout for all scenes
     layout_updates = {}
     for sev_cnt in range(len(severity_range)):
         scene_key = f'scene{sev_cnt+1}'
         layout_updates[scene_key] = dict(
-            xaxis=dict(title='X/ENU-East/NED-North', range=[70, -70]),
-            yaxis=dict(title='Y/ENU-North/NED-East', range=[-70, 70]),
-            zaxis=dict(title='Z/ENU-Up/NED-Down', range=[575, 615]),
+            xaxis=dict(title='E', range=[-200, 200]),
+            yaxis=dict(title='N', range=[-200, 200]),
+            zaxis=dict(title='U', range=[565, 635]),
             aspectmode='cube'
         )
     
