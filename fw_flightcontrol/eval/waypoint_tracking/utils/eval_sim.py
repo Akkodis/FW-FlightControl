@@ -99,9 +99,9 @@ def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_
     total_ep_cnt = 0
     
     # Initialize arrays to store results
-    enu_positions = np.full((len(severity_range), num_ep, 2000, 3), np.nan)
-    orientations = np.full((len(severity_range), num_ep, 2000, 3), np.nan)
-    wind_vector = np.full((len(severity_range), num_ep, 2000, 3), np.nan)
+    enu_positions = np.full((len(severity_range), num_ep, env.max_episode_steps, 3), np.nan)
+    orientations = np.full((len(severity_range), num_ep, env.max_episode_steps, 3), np.nan)
+    wind_vector = np.full((len(severity_range), num_ep, env.max_episode_steps, 3), np.nan)
     ep_fcs_fluct = np.full((len(severity_range), num_ep, 3), np.nan)
     target_success = np.zeros((len(severity_range), num_ep))
     
