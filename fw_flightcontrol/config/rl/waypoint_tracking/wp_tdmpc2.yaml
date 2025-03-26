@@ -8,7 +8,7 @@ steps: 1_500_000
 
 # eval during training
 periodic_eval: true
-eval_freq: 37_500 # This will make 20 evaluations points
+eval_freq: 75_000 # This will make 20 evaluations points
 eval_episodes: ??? # this value is overwritten by the size of the reference sequence in the code
 final_traj_plot: true # simulate a final trajectory at the end of training (for visualization + log in wandb)
 
