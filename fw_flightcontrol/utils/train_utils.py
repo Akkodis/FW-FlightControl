@@ -48,17 +48,24 @@ attitude_seq: np.ndarray = np.array([
 # 									])
 
 # Waypoint Tracking sequence for the periodic evaluation
-waypoint_seq: np.ndarray = np.array([       # x, y, z
-                                        [1.88, -49.1, 609.256],
-                                        [-4.027, 49.837, 600.229],
-                                        [29.338, -39.304, 590.279],
-                                        [-37.94, 31.081, 609.722],
-                                        [-29.219, 39.939, 592.849]
-                                    ])
-
-# waypoint_seq: np.ndarray = np.array([
-#                                         [0, 50, 600],
+# 50m distance
+# waypoint_seq: np.ndarray = np.array([       # x, y, z
+#                                         [1.88, -49.1, 609.256],
+#                                         [-4.027, 49.837, 600.229],
+#                                         [29.338, -39.304, 590.279],
+#                                         [-37.94, 31.081, 609.722],
+#                                         [-29.219, 39.939, 592.849]
 #                                     ])
+
+# 200m distance
+waypoint_seq: np.ndarray = np.array([
+        [ -19.95602298,  199.00022285,  600.8175885 ],
+        [ 193.76822086,   49.3698936,   595.93918866],
+        [ 183.47078143,  -79.51792037,  596.07919621],
+        [-186.32373396,  -67.48109673,  627.01421381],
+        [ -50.77732583, -192.63435968,  582.28936327],
+    ])
+
 
 # Altitude Tracking sequence for the periodic evaluation
 altitude_seq: np.ndarray = np.array([[550], [570], [590], [600], [620], [640], [650]])
@@ -340,8 +347,8 @@ def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
         # # targets are 100m away and z is around the starting altitude at 600m
         # targets_enu = unit_vecs * 100 + np.full((cfg_rl.num_envs, 3), [0, 0, 600])
 
-        targets_enu = constrained_waypoint_sample(cfg_rl.num_envs, radius=50, z_center=600, 
-                                                  min_z=-10, max_z=10, min_y=None)
+        targets_enu = constrained_waypoint_sample(cfg_rl.num_envs, radius=200, z_center=600, 
+                                                  min_z=-30, max_z=30, min_y=None)
 
         # Straight line (the waypoint is always at the same x, z and y=50)
         # x_targets = np.full((cfg_rl.num_envs, 1), 0)
