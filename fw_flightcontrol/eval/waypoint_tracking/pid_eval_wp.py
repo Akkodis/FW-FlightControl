@@ -3,7 +3,6 @@ import numpy as np
 import os
 import sys
 import hydra
-import random
 import matplotlib.pyplot as plt
 from fw_jsbgym.trim.trim_point import TrimPoint
 from fw_jsbgym.models.aerodynamics import AeroModel
@@ -13,7 +12,6 @@ sys.path.append(f'{os.path.dirname(os.path.abspath(__file__))}/../../agents/tdmp
 from omegaconf import DictConfig
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.parser import parse_cfg
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.envs import make_env
-from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
 from fw_flightcontrol.eval.waypoint_tracking.utils import eval_sim, metrics
 
 from fw_flightcontrol.agents.pid import PID
@@ -112,12 +110,12 @@ def eval(cfg: DictConfig):
     # targets_enu = np.array([targets_enu[0]])
     # targets_enu = np.array([[47.473, 15.478, 602.59]])
     # targets_enu = np.array([[15.473, 43.478, 602.59]])
-    targets_ecef, pid_targets = eval_sim.prepare_targets(env, targets_enu, cfg_rl, pid=True)
+    targets, pid_targets = eval_sim.prepare_targets(env, targets_enu, cfg_rl, pid=True)
 
     if cfg_rl.eval.run_eval_sims:
         # Run all simulations
         enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success = eval_sim.run_simulations(
-            env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_sim, 
+            env, agent, targets, severity_range, jsbsim_seeds, cfg_sim, 
             trim=trim, pid_targets=pid_targets
         )
 

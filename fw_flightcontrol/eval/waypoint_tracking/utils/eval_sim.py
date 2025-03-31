@@ -6,21 +6,30 @@ from fw_jsbgym.utils import jsbsim_properties as prp
 
 def prepare_targets(env, targets_enu, cfg_rl, pid=False):
     """Prepare target coordinates for simulation"""
-    targets_ecef = np.zeros_like(targets_enu)
+    targets = np.zeros_like(targets_enu)
     pid_targets = None
-    for i, target_enu in enumerate(targets_enu):
-        targets_ecef[i] = conversions.enu2ecef(*target_enu,
-                                              env.unwrapped.sim['ic/lat-geod-deg'],
-                                              env.unwrapped.sim['ic/long-gc-deg'],
-                                              0.0)
+
+    # Convert ENU to ECEF coordinates if not in ENU mode
+    if "ENU" not in cfg_rl.task:
+        for i, target_enu in enumerate(targets_enu):
+                targets[i] = conversions.enu2ecef(
+                    *target_enu,
+                    env.unwrapped.sim['ic/lat-geod-deg'],
+                    env.unwrapped.sim['ic/long-gc-deg'],
+                    0.0
+                )
+    else: # else use the directly provided ENU coordinates
+        targets = targets_enu
 
     if cfg_rl.task == 'WaypointVaTracking':
-        targets_ecef = np.hstack((targets_ecef, np.array([60.0])))
+        print(f"targets: {targets}")
+        airspeed_targets = np.full((targets.shape[0], 1), 60.0)
+        targets = np.hstack((targets, airspeed_targets))
     
     if pid:
         pid_targets = prepare_pid_targets(env, targets_enu)
         
-    return targets_ecef, pid_targets
+    return targets, pid_targets
 
 
 def prepare_pid_targets(env, targets_enu):
@@ -92,9 +101,9 @@ def pid_action(agent, env, pid_targets, ep_cnt) -> torch.Tensor:
     return action
 
 
-def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_sim, pid_targets=None, trim=None):
+def run_simulations(env, agent, targets, severity_range, jsbsim_seeds, cfg_sim, pid_targets=None, trim=None):
     """Run simulations for all severity levels and episodes"""
-    num_ep = targets_ecef.shape[0]
+    num_ep = targets.shape[0]
     total_num_ep = len(severity_range) * num_ep
     total_ep_cnt = 0
     
@@ -114,13 +123,11 @@ def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_
         # by getting the substring after the underscore (e.g. "wind_5kph" -> 5)
         if ("wind" in severity):
             cfg_sim.eval_sim_options.atmosphere.wind.wind_severity = float(severity.split('_')[1][:-3])
-        else:
-            cfg_sim.eval_sim_options.atmosphere.wind.wind_severity = severity
 
 
         print(f"********** TDMPC2 METRICS {severity} **********")
         
-        for ep_cnt, target_ecef in enumerate(targets_ecef):
+        for ep_cnt, target_ecef in enumerate(targets):
             # print episode number / total number of episodes
             print(f"-- Episode {total_ep_cnt + 1} / {total_num_ep} --")
 
@@ -179,6 +186,9 @@ def run_simulations(env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_
                     ep_fcs_fluct[sev_cnt, ep_cnt] = np.nanmean(
                         np.abs(np.diff(ep_fcs_pos_hist, axis=0)), axis=0
                     )
+                    if isinstance(agent, dict):
+                        for pid in agent.values():
+                            pid.reset() # reset PID controllers (integral and prev_error)
                     break
 
     return enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success

@@ -196,9 +196,20 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
         # non_norm_obs.append([])
         obs, info = env.reset(options=cfg_sim.eval_sim_options)
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
-        ref_ep = conversions.enu2ecef(*ref_ep, env.unwrapped.sim['ic/lat-geod-deg'], env.unwrapped.sim['ic/long-gc-deg'], 0.0)
+        # Convert target from ENU to ECEF coord if not in ENU mode
+        if "ENU" not in env_id:
+            ref_ep = conversions.enu2ecef(
+                *ref_ep, 
+                env.unwrapped.sim['ic/lat-geod-deg'], 
+                env.unwrapped.sim['ic/long-gc-deg'], 
+                0.0
+            )
+        else: # else use the directly provided ENU coordinates
+            ref_ep = np.array(ref_ep)
+
         if 'WaypointVa' in env_id:
             ref_ep = np.hstack((ref_ep, np.array([60.0])))
+
         while not done:
             env.set_target_state(ref_ep)
             with torch.no_grad():
@@ -235,7 +246,7 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
     # Compute the RMSE of the airspeed errors
     va_rmse = np.nan
     if 'WaypointVa' in env_id:
-        va_rmse = np.sqrt(np.mean(np.square(non_norm_obs[:, :, 4])))
+        va_rmse = np.sqrt(np.nanmean(np.square(non_norm_obs[:, :, 4])))
 
     env.reset(options=cfg_sim.train_sim_options) # reset the env with the training options for the following of the training
 
@@ -347,8 +358,10 @@ def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
         # # targets are 100m away and z is around the starting altitude at 600m
         # targets_enu = unit_vecs * 100 + np.full((cfg_rl.num_envs, 3), [0, 0, 600])
 
-        targets_enu = constrained_waypoint_sample(cfg_rl.num_envs, radius=200, z_center=600, 
-                                                  min_z=-30, max_z=30, min_y=None)
+        targets_enu = constrained_waypoint_sample(
+            cfg_rl.num_envs, radius_range=[50, 200], z_center=600, 
+            min_z=[-10, -30], max_z=[10, 30], min_y=None,
+        )
 
         # Straight line (the waypoint is always at the same x, z and y=50)
         # x_targets = np.full((cfg_rl.num_envs, 1), 0)
@@ -356,13 +369,19 @@ def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
         # z_targets = np.full((cfg_rl.num_envs, 1), 600.0)
         # targets_enu = np.hstack((x_targets, y_targets, z_targets))
         targets = np.zeros_like(targets_enu)
-        for i in range(cfg_rl.num_envs):
-            targets[i] = conversions.enu2ecef(*targets_enu[i],
-                                            env.unwrapped.sim['ic/lat-geod-deg'],
-                                            env.unwrapped.sim['ic/long-gc-deg'],
-                                            0.0)
+        # if not in ENU mode, convert target to ECEF coordinates
+        if "ENU" not in cfg_rl.task:
+            for i in range(cfg_rl.num_envs):
+                targets[i] = conversions.enu2ecef(
+                    *targets_enu[i],
+                    env.unwrapped.sim['ic/lat-geod-deg'],
+                    env.unwrapped.sim['ic/long-gc-deg'],
+                    0.0
+                )
+        else: # else use the directly provided ENU coordinates
+            targets = targets_enu
         if 'WaypointVa' in env_id:
-            targets = np.hstack((targets, np.full((cfg_rl.num_envs, 1), 60.0))) # add the airspeed target (60 kph)
+                targets = np.hstack((targets, np.full((cfg_rl.num_envs, 1), 60.0))) # add the airspeed target (60 kph)
     elif 'Altitude' in env_id:
         z_targets = np.random.uniform(550, 650, (cfg_rl.num_envs, 1))
         targets = z_targets
@@ -420,10 +439,16 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
     elif 'Waypoint' in env_id:
         # target_enu = np.array([0, 300.0, 600.0])
         target_enu = np.array([0, 50.0, 600.0])
-        target = conversions.enu2ecef(*target_enu,
-                                      e_env.unwrapped.sim['ic/lat-geod-deg'],
-                                      e_env.unwrapped.sim['ic/long-gc-deg'],
-                                      0.0)
+        if "ENU" not in cfg_sim.task:
+            target = conversions.enu2ecef(
+                *target_enu,
+                e_env.unwrapped.sim['ic/lat-geod-deg'],
+                e_env.unwrapped.sim['ic/long-gc-deg'],
+                0.0
+            )
+        else: # else use the directly provided ENU coordinates
+            target = target_enu
+        # if the task has Va tracking, add the airspeed target
         if 'WaypointVa' in env_id:
             target = np.hstack((target, np.array([60.0])))
 

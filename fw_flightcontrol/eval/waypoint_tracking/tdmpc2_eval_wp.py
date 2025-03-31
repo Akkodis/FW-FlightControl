@@ -3,7 +3,6 @@ import numpy as np
 import os
 import sys
 import hydra
-import random
 import matplotlib.pyplot as plt
 from fw_jsbgym.trim.trim_point import TrimPoint
 
@@ -70,12 +69,12 @@ def eval(cfg: DictConfig):
     # Load and prepare targets
     targets_np_file = 'eval/waypoint_tracking/targets/target_points360_200m.npy'
     targets_enu = np.load(targets_np_file)
-    targets_ecef, _ = eval_sim.prepare_targets(env, targets_enu, cfg_rl)
+    targets, _ = eval_sim.prepare_targets(env, targets_enu, cfg_rl)
 
     if cfg_rl.eval.run_eval_sims:
         # Run all simulations
         enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success = eval_sim.run_simulations(
-            env, agent, targets_ecef, severity_range, jsbsim_seeds, cfg_sim
+            env, agent, targets, severity_range, jsbsim_seeds, cfg_sim
         )
 
         np.savez(
