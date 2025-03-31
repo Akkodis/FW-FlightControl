@@ -306,17 +306,49 @@ def make_env(env_id, cfg_env, render_mode, telemetry_file=None, eval=False, gamm
     return thunk
 
 
-def constrained_waypoint_sample(n_points, radius=50, z_center=600, min_z=-10, max_z=10, min_y=None):
-    # Sample all z values at once
-    z = np.random.uniform(min_z, max_z, size=n_points)
+def constrained_waypoint_sample(n_points, radius_range=50, z_center=600, min_z=-10, max_z=10, min_y=None):
+    # Check if radius_range is a single value or a range
+    if isinstance(radius_range, (list, tuple)) and len(radius_range) == 2:
+        min_radius, max_radius = radius_range
+        # Sample radii for each point
+        radius = np.random.uniform(min_radius, max_radius, size=n_points)
+        
+        # Check if min_z and max_z are ranges for radius-dependent scaling
+        if (isinstance(min_z, (list, tuple)) and len(min_z) == 2 and 
+            isinstance(max_z, (list, tuple)) and len(max_z) == 2):
+            
+            min_z_min, min_z_max = min_z  # min_z range at min and max radius
+            max_z_min, max_z_max = max_z  # max_z range at min and max radius
+            
+            # Linear interpolation for each radius to get its specific z-range
+            radius_norm = (radius - min_radius) / (max_radius - min_radius)
+            min_z_values = min_z_min + radius_norm * (min_z_max - min_z_min)
+            max_z_values = max_z_min + radius_norm * (max_z_max - max_z_min)
+            
+            # Sample z values individually for each point based on its z-range
+            z = np.zeros(n_points)
+            for i in range(n_points):
+                z[i] = np.random.uniform(min_z_values[i], max_z_values[i])
+        else:
+            # Use the same z range for all points
+            z = np.random.uniform(min_z, max_z, size=n_points)
+    else:
+        # Use a fixed radius for all points
+        radius = np.full(n_points, radius_range)
+        # Use the same z range for all points (ensuring min_z and max_z are treated as single values)
+        min_z_val = min_z[0] if isinstance(min_z, (list, tuple)) else min_z
+        max_z_val = max_z[0] if isinstance(max_z, (list, tuple)) else max_z
+        z = np.random.uniform(min_z_val, max_z_val, size=n_points)
 
     # Compute horizontal radii r for all z values
-    r = np.sqrt(radius**2 - z**2)
+    r = np.sqrt(np.power(radius, 2) - np.power(z, 2))
 
     if min_y is not None:
         # Check if min_y is geometrically possible
         if np.any(min_y > r):
-            raise ValueError(f"min_y={min_y} is larger than some computed horizontal radii (r), "
+            invalid_indices = np.where(min_y > r)[0]
+            raise ValueError(f"min_y={min_y} is larger than some computed horizontal radii (r) "
+                             f"for {len(invalid_indices)} points, "
                              f"which means no valid points can be sampled at those z levels.")
 
         # Compute theta_min for all radii
