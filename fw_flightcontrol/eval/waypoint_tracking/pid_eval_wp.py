@@ -43,21 +43,21 @@ def eval(cfg: DictConfig):
     # inner loop
     kp_roll: float = 0.5
     ki_roll: float = 0.0
-    kd_roll: float = 0.3 # default 0.3
+    kd_roll: float = 0.3
     roll_pid: PID = PID(kp=kp_roll, ki=ki_roll, kd=kd_roll,
                     dt=env.fdm_dt, limit=x8.aileron_limit)
 
     # outer loop
-    kp_course: float = 0.65 # default 0.4
-    ki_course: float = 0.0 # default 0.0
+    kp_course: float = 1.0
+    ki_course: float = 1.0
     course_pid: PID = PID(kp=kp_course, ki=ki_course,
                      dt=env.fdm_dt, limit=x8.roll_max)
     
     # longitudinal dynamics
     # inner loop
-    kp_pitch: float = -19.0
+    kp_pitch: float = -1.0
     ki_pitch: float = -0.0
-    kd_pitch: float = -2.0
+    kd_pitch: float = -0.01
     pitch_pid: PID = PID(kp=kp_pitch, ki=ki_pitch, kd=kd_pitch,
                         dt=env.fdm_dt, trim=trim, limit=x8.aileron_limit)
 
