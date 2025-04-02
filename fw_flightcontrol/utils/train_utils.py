@@ -380,26 +380,11 @@ def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
         pitch_targets = np.random.uniform(-pitch_high, pitch_high)
         targets = np.hstack((roll_targets, pitch_targets))
     elif 'Waypoint' in env_id:
-        # randomly sampling a unit vector (direction) in the ENU frame
-        # don't sample if y distance is too close from starting point
-        # unit_vecs = np.random.uniform(low=[-1, 0.5, -0.2],
-        #                               high=[1, 1, 0.2],
-        #                               size=(cfg_rl.num_envs, 3))
-        # unit_vecs /= np.linalg.norm(unit_vecs)
-
-        # # targets are 100m away and z is around the starting altitude at 600m
-        # targets_enu = unit_vecs * 100 + np.full((cfg_rl.num_envs, 3), [0, 0, 600])
-
         targets_enu = constrained_waypoint_sample(
             cfg_rl.num_envs, radius_range=[50, 200], z_center=600, 
             min_z=[-10, -30], max_z=[10, 30], min_y=None,
         )
 
-        # Straight line (the waypoint is always at the same x, z and y=50)
-        # x_targets = np.full((cfg_rl.num_envs, 1), 0)
-        # y_targets = np.full((cfg_rl.num_envs, 1), 50.0)
-        # z_targets = np.full((cfg_rl.num_envs, 1), 600.0)
-        # targets_enu = np.hstack((x_targets, y_targets, z_targets))
         targets = np.zeros_like(targets_enu)
         # if not in ENU mode, convert target to ECEF coordinates
         if "ENU" not in cfg_rl.task:
