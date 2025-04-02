@@ -1,0 +1,11 @@
+name: wp_dist_xyz
+weights:
+    r_x:
+        c_x: 3.333
+        max_x: 400
+    r_y:
+        c_y: 3.333
+        max_y: 400
+    r_z:
+        c_z: 3.333
+        max_z: 60

@@ -1,9 +1,0 @@
-name: wp_alt_xy_dist
-weights:
-    total_scale: 8.0
-    r_alt:
-        tanh_max: 4.0
-        tanh_scale: 0.01
-    r_xy:
-        tanh_max: 4.0
-        tanh_scale: 0.004
