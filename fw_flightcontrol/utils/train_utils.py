@@ -433,15 +433,17 @@ def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
         roll_targets = np.random.uniform(-roll_high, roll_high)
         pitch_targets = np.random.uniform(-pitch_high, pitch_high)
         targets = np.hstack((roll_targets, pitch_targets))
-    elif 'Waypoint' in env_id:
+    elif 'Waypoint' in env_id or 'Path' in env_id or 'CourseAlt' in env_id:
         targets_enu = constrained_waypoint_sample(
             cfg_rl.num_envs, radius_range=[50, 200], z_center=600, 
             min_z=[-10, -30], max_z=[10, 30], min_y=None,
         )
-
         targets = np.zeros_like(targets_enu)
-        # if not in ENU mode, convert target to ECEF coordinates
-        if "ENU" not in cfg_rl.task:
+        # if ENU mode waypoint tracking or straight path tracking, use the directly provided ENU coordinates
+        if "ENU" in env_id or "Path" in env_id or "CourseAlt" in env_id:
+            targets = targets_enu
+        # else convert the ENU coordinates to ECEF coordinates
+        else:
             for i in range(cfg_rl.num_envs):
                 targets[i] = conversions.enu2ecef(
                     *targets_enu[i],
@@ -449,10 +451,10 @@ def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
                     env.unwrapped.sim['ic/long-gc-deg'],
                     0.0
                 )
-        else: # else use the directly provided ENU coordinates
-            targets = targets_enu
+
         if 'WaypointVa' in env_id:
                 targets = np.hstack((targets, np.full((cfg_rl.num_envs, 1), 60.0))) # add the airspeed target (60 kph)
+
     elif 'Altitude' in env_id:
         z_targets = np.random.uniform(550, 650, (cfg_rl.num_envs, 1))
         targets = z_targets
@@ -507,10 +509,12 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
         target = np.array([roll_ref, pitch_ref])
     elif 'Altitude' in env_id:
         target = np.array([630])
+    elif 'Path' in env_id or 'CourseAlt' in env_id:
+        target_enu = target = np.array([-50.77732583, 192.63435968,  625.28936327])
     elif 'Waypoint' in env_id:
         # target_enu = np.array([0, 300.0, 600.0])
-        target_enu = np.array([0, 50.0, 600.0])
-        if "ENU" not in cfg_sim.task:
+        target_enu = np.array([-50.77732583, 192.63435968,  625.28936327])
+        if "ENU" not in env_id:
             target = conversions.enu2ecef(
                 *target_enu,
                 e_env.unwrapped.sim['ic/lat-geod-deg'],
@@ -539,6 +543,7 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
         if done:
             print(f"Episode reward: {info['episode']['r']}")
             break
+
     telemetry_df = pd.read_csv(telemetry_file)
     traj_3d_points = telemetry_df[['position_enu_e_m', 'position_enu_n_m', 'position_enu_u_m']].to_numpy()
     traj_3d = go.Scatter3d(x=traj_3d_points[:, 0], y=traj_3d_points[:, 1], z=traj_3d_points[:, 2], mode='lines')
