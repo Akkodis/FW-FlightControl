@@ -2,51 +2,35 @@ import numpy as np
 import torch
 from fw_jsbgym.utils import conversions
 from fw_jsbgym.utils import jsbsim_properties as prp
+from fw_flightcontrol.agents.pid import PID
 
 
 def prepare_targets(env, targets_enu, cfg_rl, pid=False):
     """Prepare target coordinates for simulation"""
-    targets = np.zeros_like(targets_enu)
-    pid_targets = None
+    targets = None
+    targets_ecef = np.zeros((targets_enu.shape[0], 3))
 
-    # Convert ENU to ECEF coordinates if not in ENU mode
-    if "ENU" not in cfg_rl.task:
-        for i, target_enu in enumerate(targets_enu):
-                targets[i] = conversions.enu2ecef(
-                    *target_enu,
-                    env.unwrapped.sim['ic/lat-geod-deg'],
-                    env.unwrapped.sim['ic/long-gc-deg'],
-                    0.0
-                )
-    else: # else use the directly provided ENU coordinates
+    if cfg_rl.task == "WaypointTrackingENU" or cfg_rl.task == "StraightPathTracking" \
+        or cfg_rl.task == "CourseAltTracking":
         targets = targets_enu
+    elif cfg_rl.task == "WaypointTracking":
+        for i, target_enu in enumerate(targets_enu):
+            # Convert ENU to ECEF coordinates
+            targets_ecef[i] = conversions.enu2ecef(
+                *target_enu,
+                env.unwrapped.sim[prp.ic_lat_gd_deg],
+                env.unwrapped.sim[prp.ic_long_gc_deg],
+                0.0,
+            )
+        targets = targets_ecef
 
-    if cfg_rl.task == 'WaypointVaTracking':
-        print(f"targets: {targets}")
-        airspeed_targets = np.full((targets.shape[0], 1), 60.0)
+    if "Va" in cfg_rl.task:
+        airspeed_targets = np.full((targets_enu.shape[0], 1), 60.0)
         targets = np.hstack((targets, airspeed_targets))
-    
-    if pid:
-        pid_targets = prepare_pid_targets(env, targets_enu)
-        
-    return targets, pid_targets
 
-
-def prepare_pid_targets(env, targets_enu):
-    """Prepare target coordinates for PID simulation"""
-    pid_targets: list[dict[str, float]] = [{} for _ in range(len(targets_enu))]
-    for i, target_enu in enumerate(targets_enu):
-        print(f"Target ENU: {target_enu}")
-        course_target = np.arctan2(target_enu[0], target_enu[1])
-        altitude_target = target_enu[2]
-        airspeed_target = 60.0
-        pid_targets[i] = {
-            'course_target': course_target,
-            'altitude_target': altitude_target,
-            'airspeed_target': airspeed_target
-        }
-    print(f"PID Targets: {np.array(pid_targets)}")
-    return np.array(pid_targets)
+    assert targets is not None, "Targets is None, check the eval_sim.prepare_targets() function"
+    print(targets)
+    return targets
 
 
 def pid_action(agent, env, path_target, wp_target) -> torch.Tensor:

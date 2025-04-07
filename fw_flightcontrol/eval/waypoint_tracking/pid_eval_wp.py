@@ -110,7 +110,7 @@ def eval(cfg: DictConfig):
     # targets_enu = np.array([targets_enu[0]])
     # targets_enu = np.array([[47.473, 15.478, 602.59]])
     # targets_enu = np.array([[15.473, 43.478, 602.59]])
-    targets, pid_targets = eval_sim.prepare_targets(env, targets_enu, cfg_rl, pid=True)
+    targets_wp: np.ndarray = eval_sim.prepare_targets(env, targets_enu, cfg_rl, pid=True)
 
     if cfg_rl.eval.run_eval_sims:
         # Run all simulations
