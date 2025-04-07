@@ -55,14 +55,14 @@ def eval(cfg: DictConfig):
     
     # longitudinal dynamics
     # inner loop
-    kp_pitch: float = -1.0
+    kp_pitch: float = -2
     ki_pitch: float = -0.0
-    kd_pitch: float = -0.01
+    kd_pitch: float = -0.1
     pitch_pid: PID = PID(kp=kp_pitch, ki=ki_pitch, kd=kd_pitch,
                         dt=env.fdm_dt, trim=trim, limit=x8.aileron_limit)
 
     kp_alt: float = 0.1
-    ki_alt: float = 0.0001
+    ki_alt: float = 0.001
     kd_alt: float = 0.0
     altitude_pid: PID = PID(kp=kp_alt, ki=ki_alt, kd=kd_alt,
                             dt=env.fdm_dt, trim=trim, limit=x8.pitch_max)
