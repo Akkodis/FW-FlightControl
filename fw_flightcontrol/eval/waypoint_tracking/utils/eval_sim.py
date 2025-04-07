@@ -73,9 +73,10 @@ def pid_action(agent, env, pid_targets, ep_cnt) -> torch.Tensor:
     # course -> roll -> aileron
     # cross track error
     xi_q = pid_targets[ep_cnt]['course_target'] # course angle of the target waypoint
-    xi_uav = (np.arctan2(env.unwrapped.sim[prp.v_east_fps], env.unwrapped.sim[prp.v_north_fps])) # course angle of the UAV
-    uav_x_n = env.unwrapped.sim[prp.enu_y_m]
-    uav_y_e = env.unwrapped.sim[prp.enu_x_m]
+    xi_uav = (np.arctan2(env.unwrapped.sim[prp.v_east_fps], env.unwrapped.sim[prp.v_north_fps]
+        )
+        uav_x_n = env.unwrapped.sim[prp.enu_n_m]
+        uav_y_e = env.unwrapped.sim[prp.enu_e_m]
     wp_prev_x_n = 0.0
     wp_prev_y_e = 0.0
 
@@ -152,9 +153,9 @@ def run_simulations(env, agent, targets, severity_range, jsbsim_seeds, cfg_sim, 
 
                 # Record position and orientation
                 enu_positions[sev_cnt, ep_cnt, t] = [
-                    env.unwrapped.sim[prp.enu_x_m],
-                    env.unwrapped.sim[prp.enu_y_m],
-                    env.unwrapped.sim[prp.enu_z_m]
+                    env.unwrapped.sim[prp.enu_e_m],
+                    env.unwrapped.sim[prp.enu_n_m],
+                    env.unwrapped.sim[prp.enu_u_m]
                 ]
                 
                 orientations[sev_cnt, ep_cnt, t] = [

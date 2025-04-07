@@ -486,7 +486,7 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
             print(f"Episode reward: {info['episode']['r']}")
             break
     telemetry_df = pd.read_csv(telemetry_file)
-    traj_3d_points = telemetry_df[['position_enu_x_m', 'position_enu_y_m', 'position_enu_z_m']].to_numpy()
+    traj_3d_points = telemetry_df[['position_enu_e_m', 'position_enu_n_m', 'position_enu_u_m']].to_numpy()
     traj_3d = go.Scatter3d(x=traj_3d_points[:, 0], y=traj_3d_points[:, 1], z=traj_3d_points[:, 2], mode='lines')
     start_point = go.Scatter3d(x=[traj_3d_points[0, 0]], y=[traj_3d_points[0, 1]], z=[traj_3d_points[0, 2]], mode='markers', marker=dict(size=5, color='red'))
     target_point = go.Scatter3d(x=[target_enu[0]], y=[target_enu[1]], z=[target_enu[2]], mode='markers', marker=dict(size=5, color='green'))
