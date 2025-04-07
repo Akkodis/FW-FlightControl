@@ -115,8 +115,7 @@ def eval(cfg: DictConfig):
     if cfg_rl.eval.run_eval_sims:
         # Run all simulations
         enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success = eval_sim.run_simulations(
-            env, agent, targets, severity_range, jsbsim_seeds, cfg_sim, 
-            trim=trim, pid_targets=pid_targets
+            env, agent, "PID", targets_wp, severity_range, jsbsim_seeds, cfg_sim, trim=trim
         )
 
         np.savez(

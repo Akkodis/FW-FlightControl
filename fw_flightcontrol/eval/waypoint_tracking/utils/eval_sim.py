@@ -49,21 +49,20 @@ def prepare_pid_targets(env, targets_enu):
     return np.array(pid_targets)
 
 
-def pid_action(agent, env, pid_targets, ep_cnt) -> torch.Tensor:
-    # print(f"Target NED: x: {env.unwrapped.sim[prp.target_ned_x_m]}, "\
-    #                 f"y: {env.unwrapped.sim[prp.target_ned_y_m]}, "\
-    #                 f"z: {env.unwrapped.sim[prp.target_ned_z_m]}")
-
+def pid_action(agent, env, path_target, wp_target) -> torch.Tensor:
+    """
+        Cascaded PID controller for straight line path tracking
+    """
     # Longitudinal control
     # setting PID references
-    agent["altitude_pid"].set_reference(pid_targets[ep_cnt]['altitude_target'])
-    agent["airspeed_pid"].set_reference(pid_targets[ep_cnt]['airspeed_target'])
+    agent["altitude_pid"].set_reference(path_target[1])
+    agent["airspeed_pid"].set_reference(path_target[2])
      # airspeed -> throttle
     throttle, _, _ = agent["airspeed_pid"].update(state=env.unwrapped.sim[prp.airspeed_kph], 
                                                     saturate=True)
     # get actions from PIDs
     # altitude -> pitch -> elevator
-    pitch_ref, _, _ = agent["altitude_pid"].update(state=env.unwrapped.sim[prp.enu_z_m], 
+    pitch_ref, _, _ = agent["altitude_pid"].update(state=env.unwrapped.sim[prp.enu_u_m], 
                                                     saturate=True)
     agent["pitch_pid"].set_reference(pitch_ref)
     elevator_cmd, _, _ = agent["pitch_pid"].update(state=env.unwrapped.sim[prp.pitch_rad],
@@ -102,9 +101,9 @@ def pid_action(agent, env, pid_targets, ep_cnt) -> torch.Tensor:
     return action
 
 
-def run_simulations(env, agent, targets, severity_range, jsbsim_seeds, cfg_sim, pid_targets=None, trim=None):
+def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_seeds, cfg_sim, trim=None):
     """Run simulations for all severity levels and episodes"""
-    num_ep = targets.shape[0]
+    num_ep = targets_wp.shape[0]
     total_num_ep = len(severity_range) * num_ep
     total_ep_cnt = 0
     
@@ -125,12 +124,16 @@ def run_simulations(env, agent, targets, severity_range, jsbsim_seeds, cfg_sim, 
         if ("wind" in severity):
             cfg_sim.eval_sim_options.atmosphere.wind.wind_severity = float(severity.split('_')[1][:-3])
 
+        print(f"********** {agent_name.upper()} METRICS {severity} **********")
 
-        print(f"********** TDMPC2 METRICS {severity} **********")
-        
-        for ep_cnt, target_ecef in enumerate(targets):
+        for ep_cnt, target_wp in enumerate(targets_wp):
             # print episode number / total number of episodes
-            print(f"-- Episode {total_ep_cnt + 1} / {total_num_ep} --")
+            print(f"-- Episode {total_ep_cnt + 1} / {total_num_ep} --") 
+
+            # Prepare path target for PID
+            if agent_name.casefold() == "pid":
+                path_target = conversions.wpENU_to_wpCourseAlt(target_wp)
+                path_target = np.hstack((path_target, 60.0)) # add airspeed target
 
             t = 0  # Reset timestep counter for each episode
             
@@ -139,13 +142,13 @@ def run_simulations(env, agent, targets, severity_range, jsbsim_seeds, cfg_sim, 
             
             # Reset environment
             obs, _ = env.reset(cfg_sim.eval_sim_options)
-            
+
             # Run episode
             while True:
                 # Set target and get action
-                env.set_target_state(target_ecef)
-                if isinstance(agent, dict) and pid_targets is not None:
-                    action = pid_action(agent, env, pid_targets, ep_cnt)
+                env.set_target_state(target_wp)
+                if agent_name.casefold() == "pid":
+                    action = pid_action(agent, env, path_target, target_wp)
                 else:
                     action = agent.act(obs, t0=t==0, eval_mode=True)
 
