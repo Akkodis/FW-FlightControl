@@ -55,23 +55,40 @@ def pid_action(agent, env, path_target, wp_target) -> torch.Tensor:
     # Lateral control
     # course -> roll -> aileron
     # cross track error
-    xi_q = pid_targets[ep_cnt]['course_target'] # course angle of the target waypoint
-    xi_uav = (np.arctan2(env.unwrapped.sim[prp.v_east_fps], env.unwrapped.sim[prp.v_north_fps]
+    path_tracking = False
+    xi_uav = np.arctan2(  # course angle of the UAV
+        env.unwrapped.sim[prp.v_east_fps],
+        env.unwrapped.sim[prp.v_north_fps]
+    )
+    if path_tracking:
+        xi_q = path_target[0] # course angle of the target waypoint
+        xi_uav = np.arctan2(  # course angle of the UAV
+            env.unwrapped.sim[prp.v_east_fps],
+            env.unwrapped.sim[prp.v_north_fps]
         )
         uav_x_n = env.unwrapped.sim[prp.enu_n_m]
         uav_y_e = env.unwrapped.sim[prp.enu_e_m]
-    wp_prev_x_n = 0.0
-    wp_prev_y_e = 0.0
+        wp_prev_x_n = 0.0
+        wp_prev_y_e = 0.0
 
-    if xi_q - xi_uav < -np.pi:
-        xi_q = xi_q + 2*np.pi
-    elif xi_q - xi_uav > np.pi:
-        xi_q = xi_q - 2*np.pi
-    e_c = -np.sin(xi_q) * (uav_x_n - wp_prev_x_n) + np.cos(xi_q) * (uav_y_e - wp_prev_y_e)
-    xi_inf = np.pi/2
-    k_path = 0.01
-    course_desired = xi_q - xi_inf * 2 / np.pi * np.arctan(k_path * e_c)
-    agent["course_pid"].set_reference(course_desired)
+        if xi_q - xi_uav < -np.pi:
+            xi_q = xi_q + 2*np.pi
+        elif xi_q - xi_uav > np.pi:
+            xi_q = xi_q - 2*np.pi
+        e_c = -np.sin(xi_q) * (uav_x_n - wp_prev_x_n) + np.cos(xi_q) * (uav_y_e - wp_prev_y_e)
+        xi_inf = np.pi/2
+        k_path = 0.01
+        course_desired = xi_q - xi_inf * 2 / np.pi * np.arctan(k_path * e_c)
+        agent["course_pid"].set_reference(course_desired)
+    else:
+        uav_to_wp_n = wp_target[1] - env.unwrapped.sim[prp.enu_n_m]
+        uav_to_wp_e = wp_target[0] - env.unwrapped.sim[prp.enu_e_m]
+        course_desired = np.arctan2(uav_to_wp_e, uav_to_wp_n)
+        if (course_desired - xi_uav) < -np.pi:
+            course_desired = course_desired + 2*np.pi
+        elif (course_desired - xi_uav) > np.pi:
+            course_desired = course_desired - 2*np.pi
+        agent["course_pid"].set_reference(course_desired)
 
     roll_ref, error_course, _ = agent["course_pid"].update(state=xi_uav,
                                                 saturate=True, is_course=False)
