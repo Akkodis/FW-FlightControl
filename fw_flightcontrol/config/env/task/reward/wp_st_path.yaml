@@ -1,0 +1,14 @@
+name: wp_st_path
+
+line_path_params:
+    course_inf: 1.570796 # pi/2
+    k_path: 0.01
+weights:
+    r_course:
+        scale: 3.141592 # pi
+        clip_max: 1.0
+        weight: 0.5
+    r_alt:
+        scale: 30
+        clip_max: 1.0
+        weight: 0.5
