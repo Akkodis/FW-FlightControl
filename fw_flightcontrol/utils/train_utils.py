@@ -193,22 +193,23 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
     non_norm_obs = np.full((ref_seq.shape[0], env.max_episode_steps) + env.observation_space.shape, np.nan)
     ep_rewards, fcs_fluct, targets_missed, targets_reached, successes = [[] for _ in range(5)]
     for ep_idx, ref_ep in enumerate(ref_seq):
-        # non_norm_obs.append([])
         obs, info = env.reset(options=cfg_sim.eval_sim_options)
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
-        # Convert target from ENU to ECEF coord if not in ENU mode
-        if "ENU" not in env_id:
+
+        # if ENU mode waypoint tracking or straight path tracking, use the directly provided ENU coordinates
+        if env_id == "WaypointTrackingENU-v0":
+            ref_ep = np.array(ref_ep)
+        # else convert the ENU coordinates to ECEF coordinates
+        else:
             ref_ep = conversions.enu2ecef(
                 *ref_ep, 
                 env.unwrapped.sim['ic/lat-geod-deg'], 
                 env.unwrapped.sim['ic/long-gc-deg'], 
                 0.0
             )
-        else: # else use the directly provided ENU coordinates
-            ref_ep = np.array(ref_ep)
 
-        if 'WaypointVa' in env_id:
-            ref_ep = np.hstack((ref_ep, np.array([60.0])))
+            if 'WaypointVa' in env_id:
+                ref_ep = np.hstack((ref_ep, np.array([60.0])))
 
         while not done:
             env.set_target_state(ref_ep)
