@@ -116,7 +116,7 @@ class WorldModel(nn.Module):
 		normal_dist = torch.distributions.Normal(mu, log_std.exp())
 		sample = normal_dist.rsample() # reparametrization trick
 		logprob = normal_dist.log_prob(sample).sum(-1, keepdim=True)
-		mu, sample, logprob = math.squash(mu, sample, logprob)
+		mu, sample, logprob = math.squash(mu, sample, logprob) # TODO: Remove ?
 		return sample, logprob, mu
 
 
