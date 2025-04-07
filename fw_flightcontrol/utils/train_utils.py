@@ -266,6 +266,56 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
     )
 
 
+def periodic_eval_coursealt_path(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
+    non_norm_obs = np.full((ref_seq.shape[0], env.max_episode_steps) + env.observation_space.shape, np.nan)
+    ep_rewards, fcs_fluct, targets_missed, targets_reached, successes = [[] for _ in range(5)]
+    for ep_idx, ref_ep in enumerate(ref_seq):
+        obs, info = env.reset(options=cfg_sim.eval_sim_options)
+        obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
+
+        while not done:
+            env.set_target_state(ref_ep)
+            with torch.no_grad():
+                if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
+                    action = agent.get_action(obs)[2].squeeze_(0).detach().cpu().numpy()
+                elif isinstance(agent, ppo.Agent_PPO) or isinstance(agent, ppo_norm.Agent_PPO):
+                    action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
+                elif isinstance(agent, TDMPC2):
+                    action = agent.act(obs.squeeze(0), t0=t==0, eval_mode=True)
+            obs, reward, term, trunc, info = env.step(action)
+            obs = torch.Tensor(obs).unsqueeze(0).to(device)
+            done = np.logical_or(term, trunc)
+            non_norm_obs[ep_idx, t] = info['non_norm_obs'] # append the non-normalized observation to the list
+            ep_reward += info['non_norm_reward']
+            t += 1
+        ep_rewards.append(ep_reward)
+
+        targets_missed.append(int(info['target_missed']))
+        targets_reached.append(int(info['target_reached']))
+        ep_fcs_pos_hist = np.array(info['fcs_pos_hist'])
+        fcs_fluct.append(np.mean(np.abs(np.diff(ep_fcs_pos_hist, axis=0)), axis=0)) # compute the fcs fluctuation of the episode being reset and append to the list
+
+    # Compute the distances to the target for all eval episodes
+    course_err_mean = np.nanmean(np.abs(non_norm_obs[:, : , 0]))
+    alt_err_mean = np.nanmean(np.abs(non_norm_obs[:, : , 1]))
+
+    # Convert fcs fluctuations to numpy array and average over all eval episodes
+    fcs_fluct = np.array(fcs_fluct).mean(axis=0)
+
+    env.reset(options=cfg_sim.train_sim_options) # reset the env with the training options for the following of the training
+
+    return dict(
+        episode_reward=np.nanmean(ep_rewards),  # mean of the episode rewards
+        course_err_mean=course_err_mean,  # mean of the course errors
+        alt_err_mean=alt_err_mean,  # mean of the altitude errors
+        targets_reached=np.sum(targets_reached),  # number of targets reached
+        targets_missed=np.sum(targets_missed),  # number of targets missed
+        ail_fluct=fcs_fluct[0],  # aileron fluctuation
+        ele_fluct=fcs_fluct[1],  # elevator fluctuation
+        thr_fluct=fcs_fluct[2],  # throttle fluctuation
+    )
+
+
 def periodic_eval(env_id, cfg_mdp, cfg_sim, env, agent, device):
     """Periodically evaluate a given agent."""
     print("*** Evaluating the agent ***")
@@ -280,6 +330,9 @@ def periodic_eval(env_id, cfg_mdp, cfg_sim, env, agent, device):
     elif 'Waypoint' in env_id:
         ref_seq = waypoint_seq
         results = periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
+    elif 'Path' in env_id or 'CourseAlt' in env_id:
+        ref_seq = waypoint_seq
+        results = periodic_eval_coursealt_path(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
     env.eval = False
     return results
 
