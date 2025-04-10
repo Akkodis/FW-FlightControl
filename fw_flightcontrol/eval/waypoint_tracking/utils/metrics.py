@@ -222,7 +222,6 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
             # Plot the wind vector at the first timestep
             # Convert wind vector from NED to ENU
             curr_sev_windvector = wind_vector[sev_cnt, i, 1, :]
-            print(f"Current severity windvector: {curr_sev_windvector}")
             # wind_vector_enu = R_ned2enu @ curr_sev_windvector
             wind_vector_enu = [1, 1, -1] * curr_sev_windvector # invert down vector to up
     
@@ -235,14 +234,14 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
             start_pos = enu_positions[sev_cnt, 0, 0, :]
         
             # Plot wind vector as an arrow
-            ax.quiver(
-                targets_enu[i, 0], targets_enu[i, 1], targets_enu[i, 2],  # starting position
-                wind_vector_enu[0], wind_vector_enu[1], wind_vector_enu[2],  # direction
-                color='cyan', 
-                linewidth=2,
-                arrow_length_ratio=0.2,
-                length=wind_speed
-            )
+            # ax.quiver(
+            #     targets_enu[i, 0], targets_enu[i, 1], targets_enu[i, 2],  # starting position
+            #     wind_vector_enu[0], wind_vector_enu[1], wind_vector_enu[2],  # direction
+            #     color='cyan', 
+            #     linewidth=2,
+            #     arrow_length_ratio=0.2,
+            #     length=wind_speed
+            # )
         
             # Add text label for wind speed and direction
             ax.text(
