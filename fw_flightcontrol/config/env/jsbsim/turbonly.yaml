@@ -15,8 +15,8 @@ train_sim_options:
         variable: True
         wind:
             enable: True
-            wind_severity: light
-            rand_continuous: False
+            rand_windspeed: False
+            wind_severity: 5.0
         turb:
             enable: True
         gust:
@@ -32,8 +32,8 @@ eval_sim_options:
         variable: True
         wind:
             enable: True
-            wind_severity: light
-            rand_continuous: False
+            rand_windspeed: False # if True, wind_severity is ignored
+            wind_severity: 5.0 # off, light, moderate, severe, float (for custom wind speed)
         turb:
             enable: True
         gust:

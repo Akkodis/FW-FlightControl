@@ -1,7 +1,7 @@
 # parent class JSBSimEnv config
 fdm_freq: 100.0 # 120 Hz being the default JSBSim freq
 agent_freq: 100.0
-episode_length_s: 20.0
+episode_length_s: 30.0
 viz_time_factor: 50.0
 debug: True
 render_mode: "none"
@@ -16,7 +16,7 @@ train_sim_options:
         wind:
             enable: True
             wind_severity: light
-            rand_continuous: False
+            rand_windspeed: False
         turb:
             enable: True
         gust:
@@ -28,12 +28,12 @@ train_sim_options:
 eval_sim_options:
     seed: ???
     atmosphere:
-        severity: all
+        severity: ["light", "moderate", "severe"]
         variable: False
         wind:
             enable: True
-            wind_severity: light
-            rand_continuous: False
+            wind_severity: light # off, light, moderate, severe, float (for custom wind speed)
+            rand_windspeed: False # if True, wind_severity is ignored
         turb:
             enable: True
         gust:

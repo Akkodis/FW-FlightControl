@@ -11,12 +11,12 @@ render_mode: "none"
 train_sim_options:
     seed: ???
     atmosphere:
-        severity: null
+        severity: light
         variable: False
         wind:
             enable: True
             wind_dir: ??? # North, East, Down
-            rand_windspeed: True
+            rand_windspeed: False
             wind_severity: ???
         turb:
             enable: False
@@ -29,12 +29,12 @@ train_sim_options:
 eval_sim_options:
     seed: ???
     atmosphere:
-        severity: null
+        severity: light
         variable: False
         wind:
             enable: True
             wind_dir: ??? # North, East, Down
-            rand_windspeed: True # if True, wind_severity is ignored
+            rand_windspeed: False # if True, wind_severity is ignored
             wind_severity: ??? # off, light, moderate, severe, float (for custom wind speed)
         turb:
             enable: False
