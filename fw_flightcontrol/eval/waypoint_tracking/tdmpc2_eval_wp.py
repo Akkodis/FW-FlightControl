@@ -106,8 +106,8 @@ def eval(cfg: DictConfig):
         ep_fcs_fluct, severity_range
     )
     
-    _, avg_distance = metrics.compute_distance(
-        enu_positions, severity_range, targets_enu.shape[0]
+    _, avg_distance, avg_distance_normalized = metrics.compute_distance(
+        enu_positions, severity_range, targets_enu, targets_enu.shape[0]
     )
     
     _, avg_time = metrics.compute_time(
@@ -119,12 +119,12 @@ def eval(cfg: DictConfig):
     csv_file = metrics.save_metrics_summary(
         csv_filename,
         severity_range, total_targets, success_dict, success_percent, 
-        avg_fcs_fluct, avg_distance, avg_time
+        avg_fcs_fluct, avg_distance,avg_distance_normalized, avg_time
     )
 
     # Plot trajectories if requested
     if cfg_rl.eval.plot_trajs:
-        fig = metrics.plot_trajectories_plotly(
+        fig = metrics.plot_trajectories(
             enu_positions, orientations, wind_vector, targets_enu, 
             target_success, severity_range, cfg_rl.eval.plot_frames
         )
