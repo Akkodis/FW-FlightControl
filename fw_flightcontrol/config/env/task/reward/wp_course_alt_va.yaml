@@ -1,0 +1,15 @@
+name: wp_course_alt_va
+
+weights:
+    r_course:
+        scale: 3.141592 # pi
+        clip_max: 1.0
+        weight: 0.45
+    r_alt:
+        scale: 30
+        clip_max: 1.0
+        weight: 0.45
+    r_airspeed:
+        scale: 30 # TODO: maybe change this to 15
+        clip_max: 1.0
+        weight: 0.1 # TODO: maybe increase this
