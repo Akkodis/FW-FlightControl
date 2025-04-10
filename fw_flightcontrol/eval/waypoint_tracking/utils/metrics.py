@@ -51,10 +51,12 @@ def compute_fcs_fluctuation(ep_fcs_fluct, severity_range):
     
     return avg_fcs_fluct_per_severity
 
-def compute_distance(enu_positions, severity_range, num_ep):
+def compute_distance(enu_positions, severity_range, targets_enu, num_ep):
     """Compute and print distance traveled statistics"""
     episode_distances = np.full((len(severity_range), num_ep), np.nan)
+    episode_distances_normalized = np.full((len(severity_range), num_ep), np.nan)
     avg_distance_per_severity = np.zeros(len(severity_range))
+    avg_distance_normalized_per_severity = np.zeros(len(severity_range))
 
     print("\nDistance traveled statistics by severity level:")
     for sev_cnt, severity in enumerate(severity_range):
@@ -75,17 +77,22 @@ def compute_distance(enu_positions, severity_range, num_ep):
                 diffs = np.diff(valid_positions, axis=0)
                 distances = np.sqrt(np.sum(diffs**2, axis=1))
                 total_distance = np.sum(distances)
+                distance_to_target = np.linalg.norm([0, 0, 600] - targets_enu[ep_cnt])
                 episode_distances[sev_cnt, ep_cnt] = total_distance
-        
+                episode_distances_normalized[sev_cnt, ep_cnt] = total_distance / distance_to_target
+
         # Calculate average distance for this severity
         avg_distance = np.nanmean(episode_distances[sev_cnt])
         avg_distance_per_severity[sev_cnt] = avg_distance
-        
-        print(f"  {severity} severity: Mean distance = {avg_distance:.2f} m")
 
-    print(f"\nAverage distance traveled by severity: {avg_distance_per_severity}")
+        avg_distance_normalized = np.nanmean(episode_distances_normalized[sev_cnt])
+        avg_distance_normalized_per_severity[sev_cnt] = avg_distance_normalized
+        
+        print(f"  {severity} severity: Mean distance = {avg_distance:.2f} m, Normalized = {avg_distance_normalized:.2f} m")
+
+    print(f"\nAverage distance traveled by severity: {avg_distance_per_severity}, Normalized: {avg_distance_normalized_per_severity}")
     
-    return episode_distances, avg_distance_per_severity
+    return episode_distances, avg_distance_per_severity, avg_distance_normalized_per_severity
 
 def compute_time(enu_positions, severity_range, num_ep, fdm_dt):
     """Compute and print elapsed time statistics"""
@@ -122,7 +129,7 @@ def compute_time(enu_positions, severity_range, num_ep, fdm_dt):
     return episode_times, avg_time_per_severity
 
 def save_metrics_summary(csv_filename, severity_range, total_targets_array, success_dict_array, success_percent_array, 
-                         avg_fcs_fluct_per_severity, avg_distance_per_severity, avg_time_per_severity):
+                         avg_fcs_fluct_per_severity, avg_distance_per_severity, avg_distance_normalized_per_severity, avg_time_per_severity):
     """Save all metrics to a CSV file"""
 
     if not os.path.exists("eval/waypoint_tracking/outputs"):
@@ -141,6 +148,7 @@ def save_metrics_summary(csv_filename, severity_range, total_targets_array, succ
             'Avg Elevator Fluctuation', 
             'Avg Throttle Fluctuation',
             'Avg Distance (m)',
+            'Avg Distance Normalized (m)',
             'Avg Time (s)'
         ])
         
@@ -159,6 +167,7 @@ def save_metrics_summary(csv_filename, severity_range, total_targets_array, succ
                 f"{avg_fcs_fluct_per_severity[sev_cnt, 1]:.6f}",
                 f"{avg_fcs_fluct_per_severity[sev_cnt, 2]:.6f}",
                 f"{avg_distance_per_severity[sev_cnt]:.2f}",
+                f"{avg_distance_normalized_per_severity[sev_cnt]:.2f}",
                 f"{avg_time_per_severity[sev_cnt]:.2f}"
             ])
         
@@ -175,6 +184,7 @@ def save_metrics_summary(csv_filename, severity_range, total_targets_array, succ
             f"{np.mean(avg_fcs_fluct_per_severity[:, 1]):.6f}",
             f"{np.mean(avg_fcs_fluct_per_severity[:, 2]):.6f}",
             f"{np.mean(avg_distance_per_severity):.2f}",
+            f"{np.mean(avg_distance_normalized_per_severity):.2f}",
             f"{np.mean(avg_time_per_severity):.2f}"
         ])
 
