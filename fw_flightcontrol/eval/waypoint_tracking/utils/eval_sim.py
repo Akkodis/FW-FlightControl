@@ -11,7 +11,7 @@ def prepare_targets(env, targets_enu, cfg_rl, pid=False):
     targets_ecef = np.zeros((targets_enu.shape[0], 3))
 
     if cfg_rl.task == "WaypointTrackingENU" or cfg_rl.task == "StraightPathTracking" \
-        or cfg_rl.task == "CourseAltTracking":
+        or "CourseAlt" in cfg_rl.task:
         targets = targets_enu
     elif cfg_rl.task == "WaypointTracking":
         for i, target_enu in enumerate(targets_enu):
@@ -23,10 +23,6 @@ def prepare_targets(env, targets_enu, cfg_rl, pid=False):
                 0.0,
             )
         targets = targets_ecef
-
-    if "Va" in cfg_rl.task:
-        airspeed_targets = np.full((targets_enu.shape[0], 1), 60.0)
-        targets = np.hstack((targets, airspeed_targets))
 
     assert targets is not None, "Targets is None, check the eval_sim.prepare_targets() function"
     print(targets)
