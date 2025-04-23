@@ -13,8 +13,11 @@ wandb/
 logs/
 
 # Data
-fw_flightcontrol/eval/waypoint_tracking/outputs/
-!fw_flightcontrol/eval/waypoint_tracking/outputs/*.py
+fw_flightcontrol/eval/waypoint_tracking/outputs/eval_trajs/
+fw_flightcontrol/eval/waypoint_tracking/outputs/metrics/
+fw_flightcontrol/eval/waypoint_tracking/outputs/plots/
+
+!fw_flightcontrol/eval/waypoint_tracking/outputs/metrics/*.py
 
 # Exceptions
 !fw_flightcontrol/eval/outputs/icinco/
