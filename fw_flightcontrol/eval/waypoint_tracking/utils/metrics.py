@@ -204,16 +204,40 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
     
     for sev_cnt, severity in enumerate(severity_range):
         ax = axs[0, sev_cnt]
-        ax.scatter(enu_positions[sev_cnt, :, 0, 0], enu_positions[sev_cnt, :, 0, 1], enu_positions[sev_cnt, :, 0, 2], color='black')
+        ax.scatter(enu_positions[sev_cnt, :, 0, 0], enu_positions[sev_cnt, :, 0, 1], enu_positions[sev_cnt, :, 0, 2], color='black', label='Start')
+        
+        # Track which success levels we've already added to the legend
+        added_to_legend = set()
         
         # Plot targets with different colors based on success level
         for ep, target_success_ep in enumerate(target_success[sev_cnt]):
             target_color = 'red'    # Hard miss (0)
+            label = 'Hard Miss'
             if target_success_ep == 1:
                 target_color = 'orange'  # Missed (1)
+                label = 'Missed'
             elif target_success_ep == 2:
                 target_color = 'green'   # Reached (2)
-            ax.scatter(targets_enu[ep, 0], targets_enu[ep, 1], targets_enu[ep, 2], color=target_color)
+                label = 'Reached'
+            
+            # Only add the label if we haven't seen this success level before
+            if target_success_ep not in added_to_legend:
+                ax.scatter(targets_enu[ep, 0], targets_enu[ep, 1], targets_enu[ep, 2], color=target_color, label=label, s=50)
+                added_to_legend.add(target_success_ep)
+            else:
+                ax.scatter(targets_enu[ep, 0], targets_enu[ep, 1], targets_enu[ep, 2], color=target_color, s=50)
+
+        # Calculate wind speed once per severity level (using the first episode's data)
+        curr_sev_windvector = wind_vector[sev_cnt, 0, 1, :]
+        wind_speed = np.linalg.norm(curr_sev_windvector)
+        start_pos = enu_positions[sev_cnt, 0, 0, :]
+        
+        # Add wind text label once per severity level
+        ax.text(
+            start_pos[0], start_pos[1], start_pos[2] + 5,
+            f"Wind: {wind_speed * 3.6:.1f} kph",
+            color='black', fontsize=14,
+        )
 
         # Plot trajectories
         for i in range(num_ep):
@@ -243,12 +267,6 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
             #     length=wind_speed
             # )
         
-            # Add text label for wind speed and direction
-            ax.text(
-                start_pos[0], start_pos[1], start_pos[2] + 5,
-                f"Wind: {wind_speed * 3.6:.1f} kph",
-                color='black'
-            )
 
             
             # Plot frames if requested
@@ -272,12 +290,14 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
         ax.set_xlim(-200, 200)
         ax.set_ylim(-200, 200)
         ax.set_zlim(565, 635)
-        ax.set_xlabel('E')
-        ax.set_ylabel('N')
-        ax.set_zlabel('U')
-        ax.set_title(f'3D Trajectories - {severity}')
+        ax.set_xlabel('E [m]', fontsize=17)
+        ax.set_ylabel('N [m]', fontsize=17)
+        ax.set_zlabel('U [m]', fontsize=17)
+        ax.tick_params(labelsize=15)
+        ax.legend(loc='upper left', fontsize=17)
+        ax.set_title(f'TD-MPC 3D Trajectories - {severity}', fontsize=20)
         ax.grid()
-    
+
     return fig
 
 
