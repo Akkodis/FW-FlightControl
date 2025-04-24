@@ -26,8 +26,8 @@ train_sim_options:
 eval_sim_options:
     seed: ??? # JSBSim level seed
     atmosphere:
-        severity: severe
-        variable: True
+        severity: moderate
+        variable: False
         wind:
             enable: False
             rand_continuous: False

@@ -29,7 +29,7 @@ train_sim_options:
 eval_sim_options:
     seed: ???
     atmosphere:
-        severity: null
+        severity: ["light"]
         variable: False
         wind:
             enable: True

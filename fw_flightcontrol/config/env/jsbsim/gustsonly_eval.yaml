@@ -14,7 +14,6 @@ train_sim_options:
         variable: True
         wind:
             enable: False
-            wind_severity: light
             rand_continuous: False
         turb:
             enable: False
@@ -31,7 +30,6 @@ eval_sim_options:
         variable: False
         wind:
             enable: False
-            wind_severity: light
             rand_continuous: False
         turb:
             enable: False
