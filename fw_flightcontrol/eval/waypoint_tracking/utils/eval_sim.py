@@ -115,7 +115,6 @@ def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_s
     for sev_cnt, severity in enumerate(severity_range):
         # Set atmosphere severity and wind settings
         cfg_sim.eval_sim_options.atmosphere.severity = severity
-        cfg_sim.eval_sim_options.atmosphere.wind.enable = (severity != 'off')
         # if the substring "wind" is the current severity, set the wind severity
         # by getting the substring after the underscore (e.g. "wind_5kph" -> 5)
         if ("wind" in severity):
@@ -148,8 +147,6 @@ def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_s
                     action = pid_action(agent, env, path_target, target_wp)
                 else:
                     action = agent.act(obs, t0=t==0, eval_mode=True)
-
-                # action = torch.Tensor([trim.aileron, trim.elevator, trim.throttle])
 
                 # Record position and orientation
                 enu_positions[sev_cnt, ep_cnt, t] = [
