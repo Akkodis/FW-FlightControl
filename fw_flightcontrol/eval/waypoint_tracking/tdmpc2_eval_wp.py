@@ -45,13 +45,14 @@ def eval(cfg: DictConfig):
     print(f"**** Using Checkpoint: {checkpoint_name} ****")
 
     # Load seeds and determine severity levels
-    jsbsim_seeds = np.load(f'eval/waypoint_tracking/targets/jsbsim_seeds.npy')
+    jsbsim_seeds = np.load(f'eval/waypoint_tracking/targets/jsbsim_100seeds.npy')
     
     if cfg_sim.eval_sim_options.atmosphere.severity == "all":
         severity_range = ["off", "light", "moderate", "severe"]
     else:
-        severity_range = [cfg_sim.eval_sim_options.atmosphere.severity]
+        severity_range = cfg_sim.eval_sim_options.atmosphere.severity
 
+    print(f"{severity_range=}")
     atmo_type: str = 'noatmo'
     if cfg_sim.eval_sim_options.atmosphere.turb.enable:
         atmo_type = 'turb'
@@ -59,22 +60,20 @@ def eval(cfg: DictConfig):
         atmo_type = 'gusts'
     if cfg_sim.eval_sim_options.atmosphere.wind.enable and not cfg_sim.eval_sim_options.atmosphere.turb.enable:
         atmo_type = 'wind'
-        severity_range = ["off", "wind_5kph", "wind_10kph", "wind_20kph", "wind_30kph"]
-        # severity_range = ["off", "wind_10kph"]
     print(f"**** Using Atmosphere Type: {atmo_type} ****")
 
     # save simulated episodes to a single numpy file
     npz_file = f'eval/waypoint_tracking/outputs/eval_trajs/{atmo_type}_{checkpoint_name}.npz'
 
     # Load and prepare targets
-    targets_np_file = 'eval/waypoint_tracking/targets/target_points360_200m.npy'
+    targets_np_file = 'eval/waypoint_tracking/targets/target_25points360_50-200m.npy'
     targets_enu = np.load(targets_np_file)
     targets_wp: np.ndarray = eval_sim.prepare_targets(env, targets_enu, cfg_rl)
 
     if cfg_rl.eval.run_eval_sims:
         # Run all simulations
         enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success = eval_sim.run_simulations(
-            env, agent, "TDMPC2", targets_wp, severity_range, jsbsim_seeds, cfg_sim
+            env, agent, "TDMPC2", targets_wp, severity_range, jsbsim_seeds, cfg_sim, trim=trim
         )
 
         np.savez(
