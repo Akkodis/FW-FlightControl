@@ -16,6 +16,7 @@ logs/
 fw_flightcontrol/eval/waypoint_tracking/outputs/eval_trajs/*
 fw_flightcontrol/eval/waypoint_tracking/outputs/metrics/*
 fw_flightcontrol/eval/waypoint_tracking/outputs/plots/*
+fw_flightcontrol/eval/waypoint_tracking/outputs/trajectories/*
 
 !fw_flightcontrol/eval/waypoint_tracking/outputs/metrics/*.py
 
