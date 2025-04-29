@@ -100,7 +100,7 @@ def process_agent_metrics(agent, agent_type, base_dir, disturbances, figures, sa
     
     # Check if agent type directory exists (only for agents with types)
     if agent_type:
-        agent_dir = os.path.join(base_dir, agent_type)
+        agent_dir = os.path.join(base_dir, '..', 'metrics', agent_type)
         if not os.path.exists(agent_dir):
             print(f"Warning: Directory {agent_dir} does not exist. Skipping.")
             return
