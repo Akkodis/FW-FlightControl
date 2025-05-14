@@ -6,9 +6,9 @@ import plotly.io as pio
 
 pio.kaleido.scope.mathjax = None
 
-def plot_barcharts(dist_type:str=None):
+def plot_barcharts(base_dir, dist_type:str=None):
     # Load the CSV
-    csv_path = f"{dist_type}_pid_vs_tdmpc.csv"  # Update with your file path
+    csv_path = os.path.join(base_dir, f"{dist_type}_pid_vs_tdmpc.csv")  # Update with your file path
     df = pd.read_csv(csv_path)
 
     # Clean up: normalize column names
@@ -53,7 +53,7 @@ def plot_barcharts(dist_type:str=None):
     # Layout
     fig.update_layout(
         title=f"Waypoints Reached by Agent and {dist_type.capitalize()} Severity",
-        xaxis_title="Turbulence Severity",
+        xaxis_title="Severity",
         yaxis_title="Waypoints Reached (%)",
         barmode='group',
         template='plotly_white',
@@ -69,7 +69,6 @@ def plot_barcharts(dist_type:str=None):
     )
 
     # Make sure output directory exists
-    base_dir = os.path.dirname(os.path.abspath(__file__))
     plots_dir = os.path.join(base_dir, "..", "plots")
     os.makedirs(plots_dir, exist_ok=True)
         
@@ -97,7 +96,7 @@ def main():
     )
     
     args = parser.parse_args()
-    plot_barcharts(args.disturbance)
+    plot_barcharts(base_dir='outputs/metrics', dist_type=args.disturbance)
 
 
 if __name__ == "__main__":

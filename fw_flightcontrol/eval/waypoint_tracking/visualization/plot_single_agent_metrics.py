@@ -30,7 +30,7 @@ def find_metrics_file(base_dir, agent_type=None, disturbance=None, agent=None):
     # Return the first matching file (there should typically be only one)
     return matching_files[0]
 
-def plot_success_metrics(base_dir=None, save_plots=True, show_plots=False, 
+def plot_success_metrics(base_dir, save_plots=True, show_plots=False, 
                          selected_agents=None, selected_agent_types=None, selected_disturbances=None):
     """
     Create bar charts showing Success, Misses, and Hard Misses as percentages for each agent type.
@@ -43,9 +43,7 @@ def plot_success_metrics(base_dir=None, save_plots=True, show_plots=False,
         selected_agent_types: List of agent types to process (None for all)
         selected_disturbances: List of disturbances to process (None for all)
     """
-    if base_dir is None:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Check if we can show plots
     if show_plots and is_headless():
         print("Warning: Running in headless environment. Cannot show plots in browser.")
@@ -100,7 +98,7 @@ def process_agent_metrics(agent, agent_type, base_dir, disturbances, figures, sa
     
     # Check if agent type directory exists (only for agents with types)
     if agent_type:
-        agent_dir = os.path.join(base_dir, '..', 'metrics', agent_type)
+        agent_dir = os.path.join(base_dir, agent_type)
         if not os.path.exists(agent_dir):
             print(f"Warning: Directory {agent_dir} does not exist. Skipping.")
             return
@@ -281,6 +279,7 @@ def main():
     
     args = parser.parse_args()
     plot_success_metrics(
+        base_dir='outputs/metrics',
         save_plots=args.save, 
         show_plots=args.show,
         selected_agents=args.agent,

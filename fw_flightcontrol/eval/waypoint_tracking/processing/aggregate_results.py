@@ -30,8 +30,8 @@ def synthesize_metrics(agent_type):
     Args:
         agent_type (str): The agent type (noplan, planning, truemf)
     """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    disturbances = ["turb", "gusts", "wind"]
+    metrics_dir_path = 'outputs/metrics'
+    disturbances = ["noatmo", "wind", "turb", "gusts"]
     seeds = ["1", "2164", "2989", "4508"]
     
     # Dictionary to store results for each disturbance
@@ -41,7 +41,7 @@ def synthesize_metrics(agent_type):
         print(f"Processing {disturbance} data for {agent_type}...")
         
         # Path to the directory containing CSV files for this agent and disturbance
-        csv_dir = os.path.join(base_dir, agent_type, disturbance)
+        csv_dir = os.path.join(metrics_dir_path, agent_type, disturbance)
         
         if not os.path.exists(csv_dir):
             print(f"Warning: Directory {csv_dir} does not exist. Skipping.")
@@ -125,7 +125,7 @@ def synthesize_metrics(agent_type):
         results[disturbance] = result_metrics
         
         # Make sure the agent directory exists
-        agent_dir = os.path.join(base_dir, agent_type)
+        agent_dir = os.path.join(metrics_dir_path, agent_type)
         os.makedirs(agent_dir, exist_ok=True)
         
         # Save the results to a CSV file with the new naming convention
