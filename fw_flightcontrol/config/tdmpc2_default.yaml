@@ -11,6 +11,7 @@ rl:
     # environment
     task: dog-run
     obs: state
+    episodic: false
 
     # evaluation
     checkpoint: ???
@@ -86,6 +87,7 @@ rl:
     save_csv: true
 
     # misc
+    compile: true
     save_video: false
     save_agent: false
     seed: ???

@@ -141,6 +141,7 @@ def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_s
 
             # Run episode
             while True:
+                torch.compiler.cudagraph_mark_step_begin()
                 # Set target and get action
                 env.set_target_state(target_wp)
                 if agent_name.casefold() == "pid":

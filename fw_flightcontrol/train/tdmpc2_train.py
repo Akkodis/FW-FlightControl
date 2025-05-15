@@ -21,6 +21,7 @@ from fw_flightcontrol.agents.tdmpc2.tdmpc2.trainer.online_trainer import OnlineT
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.logger import Logger
 
 torch.backends.cudnn.benchmark = True
+torch.set_float32_matmul_precision('high')
 
 
 @hydra.main(config_name='tdmpc2_default', config_path='../config')

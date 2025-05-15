@@ -20,6 +20,7 @@ def eval(cfg: DictConfig):
     """Main evaluation function"""
     # Setup environment and device
     np.set_printoptions(precision=3)
+    torch.set_float32_matmul_precision('high')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"**** Using Device: {device} ****")
 
@@ -68,9 +69,9 @@ def eval(cfg: DictConfig):
     # Load and prepare targets
     targets_np_file = 'eval/waypoint_tracking/data/targets/target_100points360_50-200m.npy'
     targets_enu = np.load(targets_np_file)
-    # targets_enu = np.array([
-    #     [0, 200, 628]
-    # ])
+    targets_enu = np.array([
+        [0, 200, 628]
+    ])
     targets_wp: np.ndarray = eval_sim.prepare_targets(env, targets_enu, cfg_rl)
 
     if cfg_rl.eval.run_eval_sims:

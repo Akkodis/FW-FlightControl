@@ -5,6 +5,7 @@ obs: state
 
 # training
 steps: 1_500_000
+episodic: true
 
 # eval during training
 periodic_eval: true

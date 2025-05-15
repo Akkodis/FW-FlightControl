@@ -84,6 +84,7 @@ def periodic_eval_AC(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
             obs, info = env.reset(options=cfg_sim.eval_sim_options)
             obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
             while not done:
+                torch.compiler.cudagraph_mark_step_begin()
                 env.set_target_state(ref_ep)
                 with torch.no_grad():
                     if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
@@ -162,6 +163,7 @@ def periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device):
         obs, info = env.reset(options=cfg_sim.eval_sim_options)
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
         while not done:
+            torch.compiler.cudagraph_mark_step_begin()
             env.set_target_state(np.array(ref_ep))
             with torch.no_grad():
                 if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
@@ -212,6 +214,7 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
                 ref_ep = np.hstack((ref_ep, np.array([60.0])))
 
         while not done:
+            torch.compiler.cudagraph_mark_step_begin()
             env.set_target_state(ref_ep)
             with torch.no_grad():
                 if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
@@ -274,6 +277,7 @@ def periodic_eval_coursealt_path(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, 
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
 
         while not done:
+            torch.compiler.cudagraph_mark_step_begin()
             env.set_target_state(ref_ep)
             with torch.no_grad():
                 if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
@@ -528,6 +532,7 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
             target = np.hstack((target, np.array([60.0])))
 
     while not done:
+        torch.compiler.cudagraph_mark_step_begin()
         e_env.unwrapped.set_target_state(target)
         if isinstance(agent, sac.Actor_SAC) or isinstance(agent, sac_norm.Actor_SAC):
             action = agent.get_action(e_obs)[2].squeeze_().detach().cpu().numpy()
