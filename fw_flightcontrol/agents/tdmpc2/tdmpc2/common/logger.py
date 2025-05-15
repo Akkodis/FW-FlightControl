@@ -1,10 +1,11 @@
+import dataclasses
 import os
 import datetime
 import re
+
 import numpy as np
 import pandas as pd
 from termcolor import colored
-from omegaconf import OmegaConf
 
 from common import TASK_SET
 from pathlib import Path
@@ -16,7 +17,7 @@ CONSOLE_FORMAT = [
 	("step", "I", "int"),
 	("episode_reward", "R", "float"),
 	("episode_success", "S", "float"),
-	("total_time", "T", "time"),
+	("elapsed_time", "T", "time"),
 ]
 
 CAT_TO_COLOR = {
@@ -137,7 +138,7 @@ class Logger:
 			# tags=cfg_to_group(cfg.rl, return_list=True) + [f"seed:{cfg.rl.seed}"],
 			tags=["tdmpc2", cfg.rl.task],
 			dir=self._log_dir,
-			config=OmegaConf.to_container(cfg, resolve=True),
+			config=dataclasses.asdict(cfg),
 		)
 		wandb.define_metric("global_step")
 		wandb.define_metric("charts/*", step_metric="global_step")

@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from tensordict import TensorDict
 
 
 def soft_ce(pred, target, cfg):
@@ -9,44 +10,38 @@ def soft_ce(pred, target, cfg):
 	return -(target * pred).sum(-1, keepdim=True)
 
 
-@torch.jit.script
 def log_std(x, low, dif):
 	"""Squashes the logstd between [-1, 1] with the tanh and scale it to be between `logstd_min` and `logstd_max`.
 	This ensures that the logstd is within a reasonable range, preventing it from being too large or too small."""
 	return low + 0.5 * dif * (torch.tanh(x) + 1)
 
-@torch.jit.script
-def _gaussian_residual(eps, log_std):
-	return -0.5 * eps.pow(2) - log_std
 
-
-@torch.jit.script
-def _gaussian_logprob(residual):
-	return residual - 0.5 * torch.log(2 * torch.pi)
-
-
-def gaussian_logprob(eps, log_std, size=None):
+def gaussian_logprob(eps, log_std):
 	"""Compute Gaussian log probability."""
-	residual = _gaussian_residual(eps, log_std).sum(-1, keepdim=True)
-	if size is None:
-		size = eps.size(-1)
-	return _gaussian_logprob(residual) * size
-
-
-@torch.jit.script
-def _squash(pi):
-	return torch.log(F.relu(1 - pi.pow(2)) + 1e-6)
+	residual = -0.5 * eps.pow(2) - log_std
+	log_prob = residual - 0.9189385175704956
+	return log_prob.sum(-1, keepdim=True)
 
 
 def squash(mu, pi, log_pi):
 	"""Apply squashing function."""
 	mu = torch.tanh(mu)
 	pi = torch.tanh(pi)
-	log_pi -= _squash(pi).sum(-1, keepdim=True)
+	squashed_pi = torch.log(F.relu(1 - pi.pow(2)) + 1e-6)
+	log_pi = log_pi - squashed_pi.sum(-1, keepdim=True)
 	return mu, pi, log_pi
 
 
-@torch.jit.script
+def int_to_one_hot(x, num_classes):
+	"""
+	Converts an integer tensor to a one-hot tensor.
+	Supports batched inputs.
+	"""
+	one_hot = torch.zeros(*x.shape, num_classes, device=x.device)
+	one_hot.scatter_(-1, x.unsqueeze(-1), 1)
+	return one_hot
+
+
 def symlog(x):
 	"""
 	Symmetric logarithmic function.
@@ -55,7 +50,6 @@ def symlog(x):
 	return torch.sign(x) * torch.log(1 + torch.abs(x))
 
 
-@torch.jit.script
 def symexp(x):
 	"""
 	Symmetric exponential function.
@@ -73,26 +67,54 @@ def two_hot(x, cfg):
 	elif cfg.num_bins == 1:
 		return symlog(x)
 	x = torch.clamp(symlog(x), cfg.vmin, cfg.vmax).squeeze(1)
-	bin_idx = torch.floor((x - cfg.vmin) / cfg.bin_size).long() # get the integer idx of the bin
-	bin_offset = ((x - cfg.vmin) / cfg.bin_size - bin_idx.float()).unsqueeze(-1) # get the decimal part of the bin idx
-	soft_two_hot = torch.zeros(x.size(0), cfg.num_bins, device=x.device) # create a tensor of zeros (batch_size, num_bins)
-	soft_two_hot.scatter_(1, bin_idx.unsqueeze(1), 1 - bin_offset) # place 1 - decimal in the desired bin idx
-	soft_two_hot.scatter_(1, (bin_idx.unsqueeze(1) + 1) % cfg.num_bins, bin_offset) # place decimal in the bin idx + 1 (idx=1 if bin_idx=num_bins)
+	bin_idx = torch.floor((x - cfg.vmin) / cfg.bin_size).long() 
+	bin_offset = ((x - cfg.vmin) / cfg.bin_size - bin_idx.float()).unsqueeze(-1)
+	soft_two_hot = torch.zeros(x.size(0), cfg.num_bins, device=x.device)
+	soft_two_hot.scatter_(1, bin_idx.unsqueeze(1), 1 - bin_offset)
+	soft_two_hot.scatter_(1, (bin_idx.unsqueeze(1) + 1) % cfg.num_bins, bin_offset)
+
+	bin_idx = torch.floor((x - cfg.vmin) / cfg.bin_size) # get the integer idx of the bin
+	bin_offset = ((x - cfg.vmin) / cfg.bin_size - bin_idx).unsqueeze(-1) # get the decimal part of the bin idx
+	soft_two_hot = torch.zeros(x.shape[0], cfg.num_bins, device=x.device, dtype=x.dtype) # create a tensor of zeros (batch_size, num_bins)
+	bin_idx = bin_idx.long()
+	soft_two_hot = soft_two_hot.scatter(1, bin_idx.unsqueeze(1), 1 - bin_offset) # place 1 - decimal in the desired bin idx
+	soft_two_hot = soft_two_hot.scatter(1, (bin_idx.unsqueeze(1) + 1) % cfg.num_bins, bin_offset) # place decimal in the bin idx + 1 (idx=1 if bin_idx=num_bins)
 	return soft_two_hot
-
-
-DREG_BINS = None
 
 
 def two_hot_inv(x, cfg):
 	"""Converts a batch of soft two-hot encoded vectors to scalars."""
-	global DREG_BINS
 	if cfg.num_bins == 0:
 		return x
 	elif cfg.num_bins == 1:
 		return symexp(x)
-	if DREG_BINS is None:
-		DREG_BINS = torch.linspace(cfg.vmin, cfg.vmax, cfg.num_bins, device=x.device)
+	dreg_bins = torch.linspace(cfg.vmin, cfg.vmax, cfg.num_bins, device=x.device, dtype=x.dtype)
 	x = F.softmax(x, dim=-1)
-	x = torch.sum(x * DREG_BINS, dim=-1, keepdim=True)
+	x = torch.sum(x * dreg_bins, dim=-1, keepdim=True)
 	return symexp(x)
+
+
+def gumbel_softmax_sample(p, temperature=1.0, dim=0):
+	"""Sample from the Gumbel-Softmax distribution."""
+	logits = p.log()
+	gumbels = (
+		-torch.empty_like(logits, memory_format=torch.legacy_contiguous_format).exponential_().log()
+	)  # ~Gumbel(0,1)
+	gumbels = (logits + gumbels) / temperature  # ~Gumbel(logits,tau)
+	y_soft = gumbels.softmax(dim)
+	return y_soft.argmax(-1)
+
+
+def termination_statistics(pred, target, eps=1e-9):
+	"""Compute episode termination statistics."""
+	pred = pred.squeeze(-1)
+	target = target.squeeze(-1)
+	rate = target.sum() / len(target)
+	tp = ((pred > 0.5) & (target == 1)).sum()
+	fn = ((pred <= 0.5) & (target == 1)).sum()
+	fp = ((pred > 0.5) & (target == 0)).sum()
+	recall = tp / (tp + fn + eps)
+	precision = tp / (tp + fp + eps)
+	f1 = 2 * (precision * recall) / (precision + recall + eps)
+	return TensorDict({'termination_rate': rate,
+			'termination_f1': f1})

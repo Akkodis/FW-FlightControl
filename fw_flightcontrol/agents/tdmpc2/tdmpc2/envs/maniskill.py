@@ -1,6 +1,6 @@
-import gym
+import gymnasium as gym
 import numpy as np
-from envs.wrappers.time_limit import TimeLimit
+from envs.wrappers.timeout import Timeout
 
 import mani_skill2.envs
 
@@ -47,9 +47,12 @@ class ManiSkillWrapper(gym.Wrapper):
 	def step(self, action):
 		reward = 0
 		for _ in range(2):
-			obs, r, _, info = self.env.step(action)
+			obs, r, done, info = self.env.step(action)
 			reward += r
-		return obs, reward, False, info
+			info['terminated'] = done
+			if done:
+				break
+		return obs, reward, done, info
 
 	@property
 	def unwrapped(self):
@@ -74,6 +77,6 @@ def make_env(cfg):
 		render_camera_cfgs=dict(width=384, height=384),
 	)
 	env = ManiSkillWrapper(env, cfg)
-	env = TimeLimit(env, max_episode_steps=100)
+	env = Timeout(env, max_episode_steps=100)
 	env.max_episode_steps = env._max_episode_steps
 	return env

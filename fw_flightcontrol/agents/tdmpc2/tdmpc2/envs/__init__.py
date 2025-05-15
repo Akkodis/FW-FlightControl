@@ -4,7 +4,6 @@ import warnings
 import gymnasium as gym
 
 from envs.wrappers.multitask import MultitaskWrapper
-from envs.wrappers.pixels import PixelWrapper
 from envs.wrappers.tensor import TensorWrapper
 from omegaconf import OmegaConf
 
@@ -31,6 +30,10 @@ try:
 	from envs.jsbsim import make_env as make_jsbsim_env
 except:
 	make_jsbsim_env = missing_dependencies
+try:
+	from envs.mujoco import make_env as make_mujoco_env
+except:
+	make_mujoco_env = missing_dependencies
 
 
 warnings.filterwarnings('ignore', category=DeprecationWarning)
@@ -68,7 +71,7 @@ def make_env(cfg):
 	else:
 		env = None
 		for fn in [make_dm_control_env, make_maniskill_env, make_metaworld_env, make_myosuite_env,
-			 		make_jsbsim_env]:
+			 		make_jsbsim_env, make_mujoco_env]:
 			try:
 				env = fn(cfg)
 			except ValueError:
@@ -77,8 +80,6 @@ def make_env(cfg):
 			raise ValueError(f'Failed to make environment "{cfg.rl.task}": please verify that dependencies are installed and that the task exists.')
 		env = TensorWrapper(env)
 		print('Environment:', env)
-	if cfg.get('obs', 'state') == 'rgb':
-		env = PixelWrapper(cfg.rl, env)
 	try: # Dict
 		cfg.rl.obs_shape = {k: v.shape for k, v in env.observation_space.spaces.items()}
 	except: # Box

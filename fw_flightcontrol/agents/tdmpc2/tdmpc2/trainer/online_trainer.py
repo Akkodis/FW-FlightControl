@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import pandas as pd
 from tensordict.tensordict import TensorDict
-
 from trainer.base import Trainer
 from fw_flightcontrol.utils import train_utils
 
@@ -20,11 +19,39 @@ class OnlineTrainer(Trainer):
 
 	def common_metrics(self):
 		"""Return a dictionary of current metrics."""
+		elapsed_time = time() - self._start_time
 		return dict(
 			step=self._step,
 			episode=self._ep_idx,
-			total_time=time() - self._start_time,
+			elapsed_time=elapsed_time,
+			steps_per_second=self._step / elapsed_time
 		)
+
+	# def eval(self):
+	# 	"""Evaluate a TD-MPC2 agent."""
+	# 	ep_rewards, ep_successes, ep_lengths = [], [], []
+	# 	for i in range(self.cfg.eval_episodes):
+	# 		obs, done, ep_reward, t = self.env.reset(), False, 0, 0
+	# 		if self.cfg.save_video:
+	# 			self.logger.video.init(self.env, enabled=(i==0))
+	# 		while not done:
+	# 			torch.compiler.cudagraph_mark_step_begin()
+	# 			action = self.agent.act(obs, t0=t==0, eval_mode=True)
+	# 			obs, reward, done, info = self.env.step(action)
+	# 			ep_reward += reward
+	# 			t += 1
+	# 			if self.cfg.save_video:
+	# 				self.logger.video.record(self.env)
+	# 		ep_rewards.append(ep_reward)
+	# 		ep_successes.append(info['success'])
+	# 		ep_lengths.append(t)
+	# 		if self.cfg.save_video:
+	# 			self.logger.video.save(self._step)
+	# 	return dict(
+	# 		episode_reward=np.nanmean(ep_rewards),
+	# 		episode_success=np.nanmean(ep_successes),
+	# 		episode_length= np.nanmean(ep_lengths),
+	# 	)
 
 	def to_td(self, obs, action=None, reward=None, terminated=None):
 		"""Creates a TensorDict for a new episode."""
@@ -40,12 +67,14 @@ class OnlineTrainer(Trainer):
 			terminated = torch.tensor(float('nan'))
 		else:
 			terminated = torch.tensor(float(terminated))
-		td = TensorDict(dict(
+
+		td = TensorDict(
 			obs=obs,
 			action=action.unsqueeze(0),
 			reward=reward.unsqueeze(0),
 			terminated=terminated.unsqueeze(0),
-		), batch_size=(1,))
+			batch_size=(1,)
+		)
 		return td
 
 	def train(self):
@@ -53,7 +82,6 @@ class OnlineTrainer(Trainer):
 		train_metrics, done, eval_next = {}, True, True
 		env_id = f"{self.cfg_all.rl.task}-v0"
 		while self._step <= self.cfg.steps:
-
 			# Evaluate agent periodically
 			if self._step % self.cfg.eval_freq == 0:
 				eval_next = True
@@ -73,14 +101,17 @@ class OnlineTrainer(Trainer):
 					eval_next = False
 
 				if self._step > 0:
-					if len(self._tds) > self.cfg.batch_size:
-						train_metrics.update(
-							episode_reward=torch.tensor([td['reward'] for td in self._tds[1:]]).sum(),
-							episode_success=info['success'],
-						)
-						train_metrics.update(self.common_metrics())
-						self.logger.log(train_metrics, 'train')
-						self._ep_idx = self.buffer.add(torch.cat(self._tds))
+					if terminated and not self.cfg.episodic:
+						raise ValueError('Termination detected but you are not in episodic mode. ' \
+						'Set `episodic=true` to enable support for terminations.')
+					train_metrics.update(
+						episode_reward=torch.tensor([td['reward'] for td in self._tds[1:]]).sum(),
+						episode_success=info['success'],
+						episode_length=len(self._tds),
+						episode_terminated=info['terminated'])
+					train_metrics.update(self.common_metrics())
+					self.logger.log(train_metrics, 'train')
+					self._ep_idx = self.buffer.add(torch.cat(self._tds))
 
 				# reset the environment with training options
 				obs, info = self.env.reset(options=self.cfg_all.env.jsbsim.train_sim_options)
