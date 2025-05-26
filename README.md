@@ -3,7 +3,7 @@
 Control algorithms, training and testing scripts for a x8 Fixed Wing UAV. Uses a JSBSim simulator based RL compatible framework: [FW-JSBSim](https://github.com/Akkodis/FW-JSBGym).
 
 ## Installation
-Requires Python 3.10
+Requires Python 3.9
 
 - Install [FW-JSBSim](https://github.com/Akkodis/FW-JSBGym)
 - Install `fw_flightcontrol` as a pip package with: `pip install -e .`
