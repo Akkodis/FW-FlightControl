@@ -1,7 +1,9 @@
 import os
 import sys
-os.environ['MUJOCO_GL'] = 'egl'
+os.environ['MUJOCO_GL'] = os.getenv("MUJOCO_GL", 'egl')
 os.environ['LAZY_LEGACY_OP'] = '0'
+os.environ['TORCHDYNAMO_INLINE_INBUILT_NN_MODULES'] = "1"
+os.environ['TORCH_LOGS'] = "+recompiles"
 import warnings
 warnings.filterwarnings('ignore')
 import torch
@@ -12,7 +14,6 @@ from termcolor import colored
 sys.path.append(f'{os.path.dirname(os.path.abspath(__file__))}/../agents/tdmpc2/tdmpc2/')
 
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.parser import parse_cfg
-from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.seed import set_seed
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.buffer import Buffer
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.envs import make_env
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
@@ -52,29 +53,30 @@ def train(cfg: dict):
 	print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.rl.work_dir)
 	trainer_cls = OfflineTrainer if cfg.rl.multitask else OnlineTrainer
 	env = make_env(cfg)
-	cfg = update_cfg(cfg)
+	cfg_rl = update_cfg(cfg.rl)
 	trainer = trainer_cls(
-		cfg=cfg.rl,
+		cfg=cfg_rl,
 		cfg_all=cfg,
 		env=env,
-		agent=TDMPC2(cfg.rl),
-		buffer=Buffer(cfg.rl),
-		logger=Logger(cfg),
+		agent=TDMPC2(cfg_rl),
+		buffer=Buffer(cfg_rl),
+		logger=Logger(cfg, cfg_rl),
 	)
 	trainer.train()
 	print('\nTraining completed successfully')
 
-def update_cfg(cfg):
+def update_cfg(cfg_rl):
 	# if we don't use the encoder, therefore no latent space, so latent_dim = obs dimension
-	if not cfg.rl.use_enc:
-		cfg.rl.latent_dim = cfg.rl.obs_shape['state'][0]
-		cfg.rl.simnorm_dim = 7 # adjust this based on the observation space
-	if cfg.rl.latent_dim == 14:
-		cfg.rl.simnorm_dim = 7
+	if not cfg_rl.use_enc:
+		cfg_rl.latent_dim = cfg_rl.obs_shape['state'][0]
+		cfg_rl.simnorm_dim = 7 # adjust this based on the observation space
+	if cfg_rl.latent_dim == 14:
+		cfg_rl.simnorm_dim = 7
 	# if not using CAPS loss, set ts_coef to 0
-	if not cfg.rl.use_caps:
-		cfg.rl.ts_coef = 0
-	return cfg
+	if not cfg_rl.use_caps:
+		cfg_rl.ts_coef = 0
+	# return cfg_to_dataclass(cfg_rl)
+	return cfg_rl
 
 if __name__ == '__main__':
 	train()

@@ -24,7 +24,7 @@ rl:
     batch_size: 256
     reward_coef: 0.1
     value_coef: 0.1
-    terminated_coef: 0.1
+    termination_coef: 1
     consistency_coef: 20
     decoder_coef: 1
     rho: 0.5 # it's lambda in the paper
@@ -87,7 +87,7 @@ rl:
     save_csv: true
 
     # misc
-    compile: true
+    compile: false
     save_video: false
     save_agent: false
     seed: ???

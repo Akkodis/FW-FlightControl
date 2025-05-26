@@ -39,15 +39,15 @@ class TDMPC2(torch.nn.Module):
 		self.model.eval()
 		self.scale = RunningScale(cfg.tau)
 		self.cfg.iterations += 2*int(cfg.action_dim >= 20) # Heuristic for large action spaces
+		
 		if OmegaConf.is_missing(cfg, 'discount'):
 			self.discount = torch.tensor(
-				[self._get_discount(ep_len) for ep_len in cfg.episode_lengths], device='cuda'
+				[self._get_discount(ep_len) for ep_len in cfg.episode_lengths], device='cuda:0'
 			) if self.cfg.multitask else self._get_discount(cfg.episode_length)
 		else:
 			self.discount = cfg.discount
-		print(f"Discount factor: {self.discount}")
 		print('Episode length:', cfg.episode_length)
-
+		print('Discount factor:', self.discount)
 		self._prev_mean = torch.nn.Buffer(torch.zeros(self.cfg.horizon, self.cfg.action_dim, device=self.device))
 		if cfg.compile:
 			print('Compiling update function with torch.compile...')
@@ -283,33 +283,7 @@ class TDMPC2(torch.nn.Module):
 		discount = self.discount[task].unsqueeze(-1) if self.cfg.multitask else self.discount
 		return reward + discount * (1-terminated) * self.model.Q(next_z, action, task, return_type='min', target=True)
 
-	# def update(self, buffer):
-
-	# 	obs, action, reward, terminated, task = buffer.sample()
-
-	#! if self.cfg.model_free:
-	# 		assert self.cfg.horizon == 1, 'Model-free version requires horizon=1'
-
-	# 	# Compute targets
-	# 	with torch.no_grad():
-	# 		z_buf = self.model.encode(obs, task) # get the latent state of the next observations in the horizon
-	# 		next_z = z_buf[1:]
-
 	def _update(self, obs, action, reward, terminated, task=None):
-		"""
-		Main update function. Corresponds to one iteration of model learning.
-		
-		Args:
-			obs (torch.Tensor): Observations from the replay buffer.
-			action (torch.Tensor): Actions from the replay buffer.
-			reward (torch.Tensor): Rewards from the replay buffer.
-			terminated (torch.Tensor): Termination signals from the replay buffer.
-			task (torch.Tensor): Task index (only used for multi-task experiments).
-		
-		Returns:
-			dict: Dictionary of training statistics.
-		"""
-
 		#! obs: shape (horizon+1, batch_size, obs_dim), obs[0] is the current initial observation
 		#! action: shape (horizon, batch_size, action_dim)
 		#! reward: shape (horizon, batch_size, 1)
@@ -325,7 +299,7 @@ class TDMPC2(torch.nn.Module):
 		self.model.train()
 
 		#! Decoder loss, in case it's separated from the forward horizon loss
-		decoder_loss = torch.tensor(0., device=self.device)
+		decoder_loss = 0.
 		if self.cfg.use_decoder:
 			obs_pred = self.model.decode(z_buf, task)
 			decoder_loss = F.mse_loss(obs_pred, obs)
@@ -334,7 +308,7 @@ class TDMPC2(torch.nn.Module):
 		zs = torch.empty(self.cfg.horizon+1, self.cfg.batch_size, self.cfg.latent_dim, device=self.device)
 		z = self.model.encode(obs[0], task)
 		zs[0] = z
-		consistency_loss = torch.tensor(0., device=self.device)
+		consistency_loss = 0.
 		if not self.cfg.model_free:
 			for t, (_action, _next_z) in enumerate(zip(action.unbind(0), next_z.unbind(0))):
 				z = self.model.next(z, _action, task)
@@ -351,12 +325,13 @@ class TDMPC2(torch.nn.Module):
 		# Compute losses
 		# model-free version doesn't have a termination model since we don't need
 		# to predict if the last latent state is terminal for action selection
-		termination_loss = torch.tensor(0., device=self.device)
+		termination_loss = 0.
 		if self.cfg.episodic and not self.cfg.model_free:
 			termination_pred = self.model.termination(zs[1:], task, unnormalized=True)
 			termination_loss = F.binary_cross_entropy_with_logits(termination_pred, terminated)
 
-		reward_loss, value_loss = torch.tensor(0., device=self.device), torch.tensor(0., device=self.device)
+		# Compute losses
+		reward_loss, value_loss = 0., 0.
 		for t, (rew_pred_unbind, rew_unbind, td_targets_unbind, qs_unbind) in enumerate(zip(reward_preds.unbind(0), reward.unbind(0), td_targets.unbind(0), qs.unbind(1))):
 			if not self.cfg.model_free:
 				reward_loss = reward_loss + math.soft_ce(rew_pred_unbind, rew_unbind, self.cfg).mean() * self.cfg.rho**t

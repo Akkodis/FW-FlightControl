@@ -1,4 +1,3 @@
-import dataclasses
 import os
 import datetime
 import re
@@ -6,6 +5,7 @@ import re
 import numpy as np
 import pandas as pd
 from termcolor import colored
+from omegaconf import OmegaConf
 
 from common import TASK_SET
 from pathlib import Path
@@ -107,27 +107,27 @@ class VideoRecorder:
 class Logger:
 	"""Primary logging object. Logs either locally or using wandb."""
 
-	def __init__(self, cfg):
-		self._log_dir = make_dir(cfg.rl.work_dir)
-		self._model_dir = make_dir(Path(f"models/train/tdmpc2/{cfg.rl.seed}"))
-		self._save_csv = cfg.rl.save_csv
-		self._save_agent = cfg.rl.save_agent
-		self._group = cfg_to_group(cfg.rl)
-		self._seed = cfg.rl.seed
+	def __init__(self, cfg, cfg_rl):
+		self._log_dir = make_dir(cfg_rl.work_dir)
+		self._model_dir = make_dir(Path(f"models/train/tdmpc2/{cfg_rl.seed}"))
+		self._save_csv = cfg_rl.save_csv
+		self._save_agent = cfg_rl.save_agent
+		self._group = cfg_to_group(cfg_rl)
+		self._seed = cfg_rl.seed
 		self._eval = []
-		print_run(cfg.rl)
-		self.project = cfg.rl.get("wandb_project", "none")
-		self.entity = cfg.rl.get("wandb_entity", "none")
-		if cfg.rl.disable_wandb or self.project == "none" or self.entity == "none":
+		print_run(cfg_rl)
+		self.project = cfg_rl.get("wandb_project", "none")
+		self.entity = cfg_rl.get("wandb_entity", "none")
+		if cfg_rl.disable_wandb or self.project == "none" or self.entity == "none":
 			print(colored("Wandb disabled.", "blue", attrs=["bold"]))
-			cfg.rl.save_agent = False
-			cfg.rl.save_video = False
+			cfg_rl.save_agent = False
+			cfg_rl.save_video = False
 			self._wandb = None
 			self._video = None
 			return
-		os.environ["WANDB_SILENT"] = "true" if cfg.rl.wandb_silent else "false"
+		os.environ["WANDB_SILENT"] = "true" if cfg_rl.wandb_silent else "false"
 		import wandb
-		self.exp_name = "tdmpc2_" + cfg.rl.exp_name + "_" + str(cfg.rl.seed)
+		self.exp_name = "tdmpc2_" + cfg_rl.exp_name + "_" + str(cfg_rl.seed)
 
 		wandb.init(
 			project=self.project,
@@ -135,10 +135,10 @@ class Logger:
 			# name=str(cfg.seed),
 			name=self.exp_name,
 			group=self._group,
-			# tags=cfg_to_group(cfg.rl, return_list=True) + [f"seed:{cfg.rl.seed}"],
-			tags=["tdmpc2", cfg.rl.task],
+			# tags=cfg_to_group(cfg_rl, return_list=True) + [f"seed:{cfg_rl.seed}"],
+			tags=["tdmpc2", cfg_rl.task],
 			dir=self._log_dir,
-			config=dataclasses.asdict(cfg),
+			config=OmegaConf.to_container(cfg, resolve=True),
 		)
 		wandb.define_metric("global_step")
 		wandb.define_metric("charts/*", step_metric="global_step")
@@ -147,8 +147,8 @@ class Logger:
 		print(colored("Logs will be synced with wandb.", "blue", attrs=["bold"]))
 		self._wandb = wandb
 		self._video = (
-			VideoRecorder(cfg.rl, self._wandb)
-			if self._wandb and cfg.rl.save_video
+			VideoRecorder(cfg_rl, self._wandb)
+			if self._wandb and cfg_rl.save_video
 			else None
 		)
 

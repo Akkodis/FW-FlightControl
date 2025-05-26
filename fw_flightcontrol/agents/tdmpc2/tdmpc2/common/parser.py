@@ -93,4 +93,5 @@ def parse_cfg(cfg: OmegaConf) -> OmegaConf:
 		cfg.horizon = 1
 		cfg.mpc = False
 
+	# return cfg
 	return cfg_to_dataclass(cfg)

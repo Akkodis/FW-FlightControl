@@ -40,7 +40,7 @@ class RunningScale(torch.nn.Module):
 	def update(self, x):
 		percentiles = self._percentile(x.detach())
 		value = torch.clamp(percentiles[1] - percentiles[0], min=1.)
-		self._value.data.lerp_(value, self.tau)
+		self.value.data.lerp_(value, self.tau)
 
 	def forward(self, x, update=False):
 		if update:
