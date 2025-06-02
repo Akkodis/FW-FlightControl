@@ -14,8 +14,8 @@ def extract_filename_components(filename, agent_type):
     agent = parts[1]
     
     # Extract the checkpoint base - different pattern for different agent types
-    if agent_type == "planning":
-        # For planning, format is usually: disturbance_agent_wp_checkpoint_seed.csv
+    if agent_type == "tdmpc2":
+        # For tdmpc2, format is usually: disturbance_agent_wp_checkpoint_seed.csv
         checkpoint_base = "_".join(parts[2:-1])
     else:
         # For others, format is: disturbance_agent_wp_agenttype_checkpoint_seed.csv
@@ -28,7 +28,7 @@ def synthesize_metrics(agent_type):
     Compute mean metrics across all seeds for a given agent type.
     
     Args:
-        agent_type (str): The agent type (noplan, planning, truemf)
+        agent_type (str): The agent type (noplan, tdmpc2, truemf)
     """
     metrics_dir_path = 'outputs/metrics'
     disturbances = ["noatmo", "wind", "turb", "gusts"]
@@ -160,7 +160,7 @@ def main():
     )
     parser.add_argument(
         "--agent-type", 
-        choices=["noplan", "planning", "truemf"],
+        choices=["noplan", "tdmpc2", "truemf"],
         help="The agent type to process"
     )
     
