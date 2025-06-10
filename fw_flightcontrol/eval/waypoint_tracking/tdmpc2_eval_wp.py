@@ -76,29 +76,30 @@ def eval(cfg: DictConfig):
 
     if cfg_rl.eval.run_eval_sims:
         # Run all simulations
-        enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success = eval_sim.run_simulations(
+        enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success, dubins_paths = eval_sim.run_simulations(
             env, agent, "TDMPC2", targets_wp, severity_range, jsbsim_seeds, cfg_sim, trim=trim
         )
-
         np.savez(
             npz_file, 
             enu_positions=enu_positions, 
             orientations=orientations,
             wind_vector=wind_vector,
             ep_fcs_fluct=ep_fcs_fluct, 
-            target_success=target_success
+            target_success=target_success,
+            dubins_paths=dubins_paths.tolist(),
         )
 
         # Close environment
         env.close()
 
     # Read trajs from the saved npz file
-    npz_data = np.load(npz_file)
+    npz_data = np.load(npz_file, allow_pickle=True)
     enu_positions = npz_data['enu_positions']
     orientations = npz_data['orientations']
     wind_vector = npz_data['wind_vector']
     ep_fcs_fluct = npz_data['ep_fcs_fluct']
     target_success = npz_data['target_success']
+    dubins_paths = npz_data['dubins_paths']
 
     # Compute metrics
     total_targets, success_percent, success_dict = metrics.compute_target_success(
@@ -129,7 +130,7 @@ def eval(cfg: DictConfig):
     if cfg_rl.eval.plot_trajs:
         fig = metrics.plot_trajectories(
             enu_positions, orientations, wind_vector, targets_enu, 
-            target_success, severity_range, cfg_rl.eval.plot_frames
+            target_success, severity_range, dubins_paths, cfg_rl.eval.plot_frames,
         )
         plt.show()
 

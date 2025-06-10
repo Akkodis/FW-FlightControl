@@ -11,7 +11,7 @@ def prepare_targets(env, targets_enu, cfg_rl, pid=False):
     targets_ecef = np.zeros((targets_enu.shape[0], 3))
 
     if cfg_rl.task == "WaypointTrackingENU" or cfg_rl.task == "StraightPathTracking" \
-        or "CourseAlt" in cfg_rl.task:
+        or "CourseAlt" in cfg_rl.task or "Dubins" in cfg_rl.task:
         targets = targets_enu
     elif cfg_rl.task == "WaypointTracking":
         for i, target_enu in enumerate(targets_enu):
@@ -110,7 +110,8 @@ def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_s
     wind_vector = np.full((len(severity_range), num_ep, env.max_episode_steps, 3), np.nan)
     ep_fcs_fluct = np.full((len(severity_range), num_ep, 3), np.nan)
     target_success = np.zeros((len(severity_range), num_ep))
-    
+    dubins_paths = np.empty((len(severity_range), num_ep), dtype=object)  # For Dubins paths if needed
+
     # Run simulations for all severity levels
     for sev_cnt, severity in enumerate(severity_range):
         # Set atmosphere severity and wind settings
@@ -188,6 +189,10 @@ def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_s
                     if isinstance(agent, dict):
                         for pid in agent.values():
                             pid.reset() # reset PID controllers (integral and prev_error)
+
+                    # If using Dubins path tracking, record the path
+                    if "Dubins" in env.spec.id:
+                        dubins_paths[sev_cnt, ep_cnt] = info["dubins_points"]
                     break
 
-    return enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success
+    return enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success, dubins_paths

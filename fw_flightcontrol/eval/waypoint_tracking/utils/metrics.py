@@ -191,7 +191,7 @@ def save_metrics_summary(csv_filename, severity_range, total_targets_array, succ
     print(f"Metrics summary saved to {csv_filename}")
     return csv_filename
 
-def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, target_success, severity_range, plot_frames=False):
+def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, target_success, severity_range, dubins_paths, plot_frames=False):
     """Plot 3D trajectories for all severity levels"""
     R_ned2enu = np.array([
         [0, 1, 0],   # East  <- North
@@ -242,6 +242,8 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
         # Plot trajectories
         for i in range(num_ep):
             ax.plot(enu_positions[sev_cnt, i, :, 0], enu_positions[sev_cnt, i, :, 1], enu_positions[sev_cnt, i, :, 2])
+            if isinstance(dubins_paths[sev_cnt, i], np.ndarray):
+                ax.scatter(dubins_paths[sev_cnt, i, :, 0], dubins_paths[sev_cnt, i, :, 1], dubins_paths[sev_cnt, i, :, 2], color='purple', s=30, label='Dubins Path')
 
             # Plot the wind vector at the first timestep
             # Convert wind vector from NED to ENU
@@ -287,8 +289,8 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
                     ax.quiver(x, y, z, *z_axis, color='blue')
         
         # Set axis properties
-        ax.set_xlim(-200, 200)
-        ax.set_ylim(-200, 200)
+        ax.set_xlim(-100, 100)
+        ax.set_ylim(-100, 100)
         ax.set_zlim(565, 635)
         ax.set_xlabel('E [m]', fontsize=17)
         ax.set_ylabel('N [m]', fontsize=17)
