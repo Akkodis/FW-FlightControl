@@ -86,7 +86,7 @@ def eval(cfg: DictConfig):
             wind_vector=wind_vector,
             ep_fcs_fluct=ep_fcs_fluct, 
             target_success=target_success,
-            dubins_paths=dubins_paths.tolist(),
+            dubins_paths=dubins_paths,
         )
 
         # Close environment

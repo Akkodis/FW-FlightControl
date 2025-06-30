@@ -2,8 +2,8 @@ defaults:
     - _self_
     - rl: waypoint_tracking/wp_tdmpc2
     - env/jsbsim: noatmo
-    - env/task/mdp: no_hist_all
-    - env/task/reward: ac_actvar
+    - env/task/mdp: wp_dubins
+    - env/task/reward: wp_course_alt
     - override hydra/launcher: submitit_local
 
 
