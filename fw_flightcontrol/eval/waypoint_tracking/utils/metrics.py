@@ -17,11 +17,11 @@ def compute_target_success(target_success, severity_range):
         dict_successes = {'hard_miss': 0, 'missed': 0, 'reached': 0}
         for (u, c) in zip(unique, counts):
             if u == 0:
-                dict_successes['hard_miss'] = c
+                dict_successes['hard_miss'] = int(c)
             elif u == 1:
-                dict_successes['missed'] = c
+                dict_successes['missed'] = int(c)
             elif u == 2:
-                dict_successes['reached'] = c
+                dict_successes['reached'] = int(c)
         
         success_dict_array.append(dict_successes)
         total_targets_array[sev_cnt] = sum(dict_successes.values())
@@ -243,7 +243,7 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
         for i in range(num_ep):
             ax.plot(enu_positions[sev_cnt, i, :, 0], enu_positions[sev_cnt, i, :, 1], enu_positions[sev_cnt, i, :, 2])
             if isinstance(dubins_paths[sev_cnt, i], np.ndarray):
-                ax.scatter(dubins_paths[sev_cnt, i, :, 0], dubins_paths[sev_cnt, i, :, 1], dubins_paths[sev_cnt, i, :, 2], color='purple', s=30, label='Dubins Path')
+                ax.scatter(dubins_paths[sev_cnt, i][:, 0], dubins_paths[sev_cnt, i][:, 1], dubins_paths[sev_cnt, i][:, 2], color='purple', s=30, label='Dubins Path')
 
             # Plot the wind vector at the first timestep
             # Convert wind vector from NED to ENU

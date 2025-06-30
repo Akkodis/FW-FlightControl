@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 os.environ['MUJOCO_GL'] = os.getenv("MUJOCO_GL", 'egl')
 os.environ['LAZY_LEGACY_OP'] = '0'
 os.environ['TORCHDYNAMO_INLINE_INBUILT_NN_MODULES'] = "1"
@@ -49,6 +50,7 @@ def train(cfg: dict):
 	assert cfg.rl.steps > 0, 'Must train for at least 1 step.'
 	cfg.rl = parse_cfg(cfg.rl)
 	os.chdir(hydra.utils.get_original_cwd())
+	np.set_printoptions(precision=3, suppress=True)
 
 	print(colored('Work dir:', 'yellow', attrs=['bold']), cfg.rl.work_dir)
 	trainer_cls = OfflineTrainer if cfg.rl.multitask else OnlineTrainer
