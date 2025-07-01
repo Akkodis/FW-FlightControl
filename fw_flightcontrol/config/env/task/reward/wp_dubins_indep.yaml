@@ -1,0 +1,20 @@
+name: wp_dubins_indep
+weights:
+    r_x:
+        c_x: 2.0
+        max_x: 100
+    r_y:
+        c_y: 2.0
+        max_y: 100
+    r_z:
+        c_z: 2.0
+        max_z: 50
+    r_course:
+        c_course: 2.0
+        max_course: 6.28  # 2*pi
+    r_flightpath:
+        c_flightpath: 2.0
+        max_flightpath: 6.28  # 2*pi
+
+# 2.5
+# 1.25

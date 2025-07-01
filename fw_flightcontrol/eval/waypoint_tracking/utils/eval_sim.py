@@ -173,13 +173,21 @@ def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_s
                 obs, reward, term, trunc, info = env.step(action)
                 t+=1
                 
-                done = np.logical_or(term, trunc)
+                if env.spec.id == "DubinsPathTrackingIndep-v0":
+                    # done if episode is out of time or if the last Dubins point is reached
+                    done = trunc or (term and env.unwrapped.sim[prp.is_last_dubins_point])
+                    if term:
+                        print(f"\t\tEpisode reward: {info['episode']['r']}, finished at step {t}\n")
+                    if trunc:
+                        print(f"*** Episode truncated at step {t}, reward: {info['episode']['r']} ***\n")
+                else:
+                    done = np.logical_or(term, trunc)
                 
                 if done:
                     total_ep_cnt += 1
                     # Record success and FCS fluctuation
                     target_success[sev_cnt, ep_cnt] = info['success']
-                    print(f"Episode reward: {info['episode']['r']}, finished at step {t}")
+                    print(f"Episode reward: {info['episode']['r']}, finished at step {t}\n")
                     
                     # Get FCS fluctuation
                     ep_fcs_pos_hist = np.array(env.get_fcs_hist())

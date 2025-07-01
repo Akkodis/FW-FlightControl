@@ -10,6 +10,7 @@ from math import pi
 from fw_flightcontrol.agents import sac_norm, sac, ppo_norm, ppo
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
 from fw_jsbgym.utils import conversions
+from fw_jsbgym.utils import jsbsim_properties as prp
 from omegaconf import DictConfig, OmegaConf
 
 # Global variables
@@ -199,7 +200,7 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
         obs, info, done, ep_reward, t = torch.Tensor(obs).unsqueeze(0).to(device), info, False, 0, 0
 
         # if ENU mode waypoint tracking or straight path tracking, use the directly provided ENU coordinates
-        if env_id == "WaypointTrackingENU-v0":
+        if env_id == "WaypointTrackingENU-v0" or env_id == "DubinsPathTrackingIndep-v0":
             ref_ep = np.array(ref_ep)
         # else convert the ENU coordinates to ECEF coordinates
         else:
@@ -225,7 +226,17 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
                     action = agent.act(obs.squeeze(0), t0=t==0, eval_mode=True)
             obs, reward, term, trunc, info = env.step(action)
             obs = torch.Tensor(obs).unsqueeze(0).to(device)
-            done = np.logical_or(term, trunc)
+
+            if env_id == "DubinsPathTrackingIndep-v0":
+                # done if episode is out of time or if the last Dubins point is reached
+                done = trunc or (term and env.unwrapped.sim[prp.is_last_dubins_point])
+                if term:
+                    print(f"\tEpisode reward: {info['episode']['r']}, finished at step {t}\n")
+                if trunc:
+                    print(f"*** Episode truncated at step {t}, reward: {info['episode']['r']}***\n")
+            else:
+                done = np.logical_or(term, trunc)
+
             non_norm_obs[ep_idx, t] = info['non_norm_obs'] # append the non-normalized observation to the list
             ep_reward += info['non_norm_reward']
             t += 1
@@ -288,7 +299,16 @@ def periodic_eval_coursealt_path(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, 
                     action = agent.act(obs.squeeze(0), t0=t==0, eval_mode=True)
             obs, reward, term, trunc, info = env.step(action)
             obs = torch.Tensor(obs).unsqueeze(0).to(device)
-            done = np.logical_or(term, trunc)
+            if env_id == "DubinsPathTrackingIndep-v0":
+                # done if episode is out of time or if the last Dubins point is reached
+                done = trunc or (term and env.unwrapped.sim[prp.is_last_dubins_point])
+                if term:
+                    print(f"\tEpisode reward: {info['episode']['r']}, finished at step {t}\n")
+                if trunc:
+                    print(f"*** Episode truncated at step {t}, reward: {info['episode']['r']}***\n")
+            else:
+                done = np.logical_or(term, trunc)
+
             non_norm_obs[ep_idx, t] = info['non_norm_obs'] # append the non-normalized observation to the list
             ep_reward += info['non_norm_reward']
             t += 1
@@ -331,10 +351,10 @@ def periodic_eval(env_id, cfg_mdp, cfg_sim, env, agent, device):
     elif 'Altitude' in env_id:
         ref_seq = altitude_seq
         results = periodic_eval_alt(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
-    elif 'Waypoint' in env_id:
+    elif 'Waypoint' in env_id or env_id == 'DubinsPathTrackingIndep-v0':
         ref_seq = waypoint_seq
         results = periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
-    elif 'Path' in env_id or 'CourseAlt' in env_id:
+    elif 'CourseAlt' in env_id:
         ref_seq = waypoint_seq
         results = periodic_eval_coursealt_path(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
     env.eval = False
@@ -540,9 +560,15 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
             action = agent.get_action_and_value(e_obs)[1][0].detach().cpu().numpy()
         elif isinstance(agent, TDMPC2):
             action = agent.act(e_obs.squeeze(0), t0=t==0, eval_mode=True)
-        e_obs, reward, truncated, terminated, info = e_env.step(action)
+        e_obs, reward, terminated, truncated, info = e_env.step(action)
         e_obs = torch.Tensor(e_obs).unsqueeze(0).to(device)
-        done = np.logical_or(truncated, terminated)
+        if env_id == "DubinsPathTrackingIndep-v0":
+            # done if episode is out of time or if the last Dubins point is reached
+            done = truncated or (terminated and e_env.unwrapped.sim[prp.is_last_dubins_point])
+            if terminated:
+                print(f"\t\tEpisode reward: {info['episode']['r']}, finished at step {t}\n")
+        else:
+            done = np.logical_or(terminated, truncated) 
         t += 1
 
         if done:

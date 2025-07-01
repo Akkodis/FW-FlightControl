@@ -1,0 +1,17 @@
+### task specific child class config: ACBohnTask ###
+obs_is_matrix: false
+obs_hist_size: 1
+
+action_avg: false
+act_hist_size: 5
+
+
+### For Dubins Path Tracking Task ###
+rho_min: 40.0 # minimum turning radius [m]
+pitch_max: [-15.0, 20.0] # pitch limits [deg]
+dub_sampling_dist: 5.0 # 10.0 # distance between Dubins path points [m]
+dub_switch_dist: 1.50 # 1.50 # distance for switching to next Dubins path point [m]
+dub_switch_course: 0.175 # 0.175 # = 10deg course angle for switching to next Dubins path point [rad]
+dub_switch_flightpath: 0.175 # 0.175 # = 10deg flight path angle for switching to next Dubins path point [rad]
+
+# dub_missed_dist: 10.0 # distance for considering a Dubins path point missed [m]

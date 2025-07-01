@@ -7,6 +7,8 @@ from tensordict.tensordict import TensorDict
 from trainer.base import Trainer
 from fw_flightcontrol.utils import train_utils
 
+from fw_jsbgym.utils import jsbsim_properties as prp
+
 
 class OnlineTrainer(Trainer):
 	"""Trainer class for single-task online TD-MPC2 training."""
@@ -132,7 +134,14 @@ class OnlineTrainer(Trainer):
 			else:
 				action = self.env.rand_act()
 			obs, reward, terminated, truncated, info = self.env.step(action)
-			done = np.logical_or(terminated, truncated)
+			if env_id == "DubinsPathTrackingIndep-v0":
+				done = truncated or (terminated and self.env.sim[prp.is_last_dubins_point])
+				if terminated:
+					print(f"\tEpisode reward: {info['episode']['r']}, finished at step {self.env.sim['info/current_step']}\n")
+				if truncated:
+					print(f"*** Episode truncated at step {self.env.sim['info/current_step']}, Reward = {info['episode']['r']} ***\n")
+			else:
+				done = np.logical_or(terminated, truncated)
 
 			self._tds.append(self.to_td(obs, action, reward, terminated))
 
