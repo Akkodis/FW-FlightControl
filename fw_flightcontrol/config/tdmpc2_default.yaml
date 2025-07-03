@@ -56,6 +56,7 @@ rl:
     min_std: 0.05
     max_std: 2
     temperature: 0.5
+    mppi_actfluct: false
 
     # actor
     log_std_min: -10

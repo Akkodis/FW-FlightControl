@@ -197,7 +197,11 @@ class TDMPC2(torch.nn.Module):
 
 			# Compute elite actions
 			value = self._estimate_value(z, actions, task).nan_to_num(0)
-			elite_idxs = torch.topk(value.squeeze(1), self.cfg.num_elites, dim=0).indices
+			act_fluct = torch.zeros(1, self.cfg.num_samples, device=self.device)
+			if self.cfg.mppi_actfluct:
+				for a_idx in range(self.cfg.action_dim):
+					act_fluct += actions[:, :, a_idx].diff(dim=0).abs().mean(dim=0) # shape = (1, num_samples)
+			elite_idxs = torch.topk(value.squeeze(1) + act_fluct.squeeze(), self.cfg.num_elites, dim=0).indices
 			elite_value, elite_actions = value[elite_idxs], actions[:, elite_idxs] # elite_values.shape = (64, 1); elite_actions.shape = (horizon, 64, 2)
 
 			# Update parameters
