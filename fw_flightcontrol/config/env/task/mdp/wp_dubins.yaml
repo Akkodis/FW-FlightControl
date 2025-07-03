@@ -10,3 +10,6 @@ rho_min: 40.0 # minimum turning radius [m]
 pitch_max: [-15.0, 20.0] # pitch limits [deg]
 dub_sampling_dist: 15.0 # distance between Dubins path points [m]
 dub_switch_dist: 10.0 # distance for switching to next Dubins path point [m]
+
+final_target_missed_dist: 10.0 # distance to consider the final target missed [m]
+final_target_reached_dist: 3.0 # distance to consider the final target reached [m]
