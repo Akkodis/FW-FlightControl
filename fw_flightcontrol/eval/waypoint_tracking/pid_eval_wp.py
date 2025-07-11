@@ -102,14 +102,17 @@ def eval(cfg: DictConfig):
     npz_file = f'eval/waypoint_tracking/outputs/trajectories/{atmo_type}_pid.npz'
 
     # Load and prepare targets
-    targets_np_file = 'eval/waypoint_tracking/data/targets/target_100points360_50-200m.npy'
+    targets_np_file = 'eval/waypoint_tracking/data/targets/target_100points360_50-200m_h100.npy'
     targets_enu = np.load(targets_np_file)
+    # targets_enu = np.array([
+    #     [10, 50, 650],
+    # ])
 
     targets_wp: np.ndarray = eval_sim.prepare_targets(env, targets_enu, cfg_rl, pid=True)
 
     if cfg_rl.eval.run_eval_sims:
         # Run all simulations
-        enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success = eval_sim.run_simulations(
+        enu_positions, orientations, wind_vector, ep_fcs_fluct, target_success, dubins_paths = eval_sim.run_simulations(
             env, agent, "PID", targets_wp, severity_range, jsbsim_seeds, cfg_sim, trim=trim
         )
 
@@ -119,19 +122,21 @@ def eval(cfg: DictConfig):
             orientations=orientations,
             wind_vector=wind_vector,
             ep_fcs_fluct=ep_fcs_fluct, 
-            target_success=target_success
+            target_success=target_success,
+            dubins_paths=dubins_paths,
         )
 
         # Close environment
         env.close()
 
     # Read trajs from the saved npz file
-    npz_data = np.load(npz_file)
+    npz_data = np.load(npz_file, allow_pickle=True)
     enu_positions = npz_data['enu_positions']
     orientations = npz_data['orientations']
     wind_vector = npz_data['wind_vector']
     ep_fcs_fluct = npz_data['ep_fcs_fluct']
     target_success = npz_data['target_success']
+    dubins_paths = npz_data['dubins_paths']
 
     # Compute metrics
     total_targets, success_percent, success_dict = metrics.compute_target_success(
@@ -162,7 +167,7 @@ def eval(cfg: DictConfig):
     if cfg_rl.eval.plot_trajs:
         fig = metrics.plot_trajectories(
             enu_positions, orientations, wind_vector, targets_enu, 
-            target_success, severity_range, cfg_rl.eval.plot_frames
+            target_success, severity_range, dubins_paths, cfg_rl.eval.plot_frames
         )
         plt.show()
 
