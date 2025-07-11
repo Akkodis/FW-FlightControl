@@ -1,0 +1,3 @@
+name: wp_dubins_indep_sparse
+weights:
+    wp_reached: 10

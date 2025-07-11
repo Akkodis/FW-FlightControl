@@ -1,20 +1,20 @@
-name: wp_dubins_indep
+name: wp_dubins_indep_dense
 weights:
     r_x:
         c_x: 2.0
-        max_x: 100
+        max_x: 1.826 # sqrt(10/3)
     r_y:
         c_y: 2.0
-        max_y: 100
+        max_y: 1.826
     r_z:
         c_z: 2.0
-        max_z: 50
+        max_z: 1.826
     r_course:
         c_course: 2.0
-        max_course: 6.28  # 2*pi
+        max_course: 0.873  # 50 deg
     r_flightpath:
         c_flightpath: 2.0
-        max_flightpath: 6.28  # 2*pi
+        max_flightpath: 0.873 # 50 deg
 
 # 2.5
 # 1.25
