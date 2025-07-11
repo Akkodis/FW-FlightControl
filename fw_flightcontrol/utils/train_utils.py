@@ -354,7 +354,7 @@ def periodic_eval(env_id, cfg_mdp, cfg_sim, env, agent, device):
     elif 'Waypoint' in env_id or env_id == 'DubinsPathTrackingIndep-v0':
         ref_seq = waypoint_seq
         results = periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
-    elif 'CourseAlt' in env_id:
+    elif 'CourseAlt' in env_id or env_id == 'DubinsPathTrackingv1-v0':
         ref_seq = waypoint_seq
         results = periodic_eval_coursealt_path(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, device)
     env.eval = False
@@ -384,69 +384,65 @@ def make_env(env_id, cfg_env, render_mode, telemetry_file=None, eval=False, gamm
     return thunk
 
 
-def constrained_waypoint_sample(n_points, radius_range=50, z_center=600, min_z=-10, max_z=10, min_y=None):
-    # Check if radius_range is a single value or a range
+def constrained_waypoint_sample(n_points, radius_range=50, z_center=600, min_z=-10, max_z=10, min_y=None, z_constrained=False):
     if isinstance(radius_range, (list, tuple)) and len(radius_range) == 2:
         min_radius, max_radius = radius_range
-        # Sample radii for each point
         radius = np.random.uniform(min_radius, max_radius, size=n_points)
-        
-        # Check if min_z and max_z are ranges for radius-dependent scaling
-        if (isinstance(min_z, (list, tuple)) and len(min_z) == 2 and 
-            isinstance(max_z, (list, tuple)) and len(max_z) == 2):
-            
-            min_z_min, min_z_max = min_z  # min_z range at min and max radius
-            max_z_min, max_z_max = max_z  # max_z range at min and max radius
-            
-            # Linear interpolation for each radius to get its specific z-range
-            radius_norm = (radius - min_radius) / (max_radius - min_radius)
-            min_z_values = min_z_min + radius_norm * (min_z_max - min_z_min)
-            max_z_values = max_z_min + radius_norm * (max_z_max - max_z_min)
-            
-            # Sample z values individually for each point based on its z-range
-            z = np.zeros(n_points)
-            for i in range(n_points):
-                z[i] = np.random.uniform(min_z_values[i], max_z_values[i])
-        else:
-            # Use the same z range for all points
-            z = np.random.uniform(min_z, max_z, size=n_points)
     else:
-        # Use a fixed radius for all points
         radius = np.full(n_points, radius_range)
-        # Use the same z range for all points (ensuring min_z and max_z are treated as single values)
-        min_z_val = min_z[0] if isinstance(min_z, (list, tuple)) else min_z
-        max_z_val = max_z[0] if isinstance(max_z, (list, tuple)) else max_z
-        z = np.random.uniform(min_z_val, max_z_val, size=n_points)
 
-    # Compute horizontal radii r for all z values
-    r = np.sqrt(np.power(radius, 2) - np.power(z, 2))
+    if not z_constrained:
+        # Sample z uniformly within range
+        z = np.random.uniform(min_z, max_z, size=n_points)
 
-    if min_y is not None:
-        # Check if min_y is geometrically possible
-        if np.any(min_y > r):
-            invalid_indices = np.where(min_y > r)[0]
-            raise ValueError(f"min_y={min_y} is larger than some computed horizontal radii (r) "
-                             f"for {len(invalid_indices)} points, "
-                             f"which means no valid points can be sampled at those z levels.")
+        # Compute max horizontal radius for each z
+        r_max = np.sqrt(np.maximum(0, radius**2 - z**2))
+        r = r_max * np.sqrt(np.random.uniform(0, 1, size=n_points))  # uniform in disc
 
-        # Compute theta_min for all radii
-        theta_min = np.arcsin(min_y / r)
-        # Sample theta within the allowed arc [theta_min, π - theta_min]
-        theta = np.random.uniform(theta_min, np.pi - theta_min, size=n_points)
+        if min_y is not None:
+            min_y = np.full(n_points, min_y) if np.isscalar(min_y) else np.asarray(min_y)
+            if np.any(min_y > r):
+                raise ValueError(f"min_y={min_y} exceeds possible radius at some z levels.")
+            theta_min = np.arcsin(min_y / r)
+            theta = np.random.uniform(theta_min, np.pi - theta_min)
+        else:
+            theta = np.random.uniform(0, 2 * np.pi, size=n_points)
+
     else:
-        # Sample theta uniformly from 0 to 2*pi when no min_y constraint is provided
-        theta = np.random.uniform(0, 2*np.pi, size=n_points)
+        # z logic: radius-dependent or not
+        if isinstance(min_z, (list, tuple)) and isinstance(max_z, (list, tuple)):
+            min_z_min, min_z_max = min_z
+            max_z_min, max_z_max = max_z
+            denom = max_radius - min_radius if max_radius != min_radius else 1.0
+            radius_norm = (radius - min_radius) / denom
+            min_z_values = min_z_min + radius_norm * (min_z_max - min_z_min)
+            max_z_values = max_z_min + radius_norm * (max_z_max - min_z_min)
+            z = np.random.uniform(min_z_values, max_z_values)
+        else:
+            min_z_val = min_z[0] if isinstance(min_z, (list, tuple)) else min_z
+            max_z_val = max_z[0] if isinstance(max_z, (list, tuple)) else max_z
+            z = np.random.uniform(min_z_val, max_z_val, size=n_points)
 
-    # Convert to x, y, z using polar to Cartesian conversion
+        # Ensure z values are valid for geometry
+        max_valid_z = np.abs(radius)
+        z = np.clip(z, -max_valid_z, max_valid_z)
+        r = np.sqrt(np.maximum(0, radius**2 - z**2))
+
+        if min_y is not None:
+            min_y = np.full(n_points, min_y) if np.isscalar(min_y) else np.asarray(min_y)
+            if np.any(min_y > r):
+                raise ValueError(f"min_y={min_y} is larger than horizontal radius r for some z levels.")
+            theta_min = np.arcsin(min_y / r)
+            theta = np.random.uniform(theta_min, np.pi - theta_min, size=n_points)
+        else:
+            theta = np.random.uniform(0, 2 * np.pi, size=n_points)
+
+    # Polar to Cartesian
     x = r * np.cos(theta)
     y = r * np.sin(theta)
-
     z += z_center
 
-    # Stack into final array
-    points = np.column_stack((x, y, z))
-
-    return points
+    return np.column_stack((x, y, z))
 
 
 def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
@@ -457,10 +453,19 @@ def sample_targets(single_target: bool, env_id: str, env, cfg_rl: DictConfig):
         roll_targets = np.random.uniform(-roll_high, roll_high)
         pitch_targets = np.random.uniform(-pitch_high, pitch_high)
         targets = np.hstack((roll_targets, pitch_targets))
-    elif 'Waypoint' in env_id or 'Path' in env_id or 'CourseAlt' in env_id:
+    elif ('Waypoint' in env_id) or ('Path' in env_id) or ('CourseAlt' in env_id):
+        # targets_enu = constrained_waypoint_sample(
+        #     cfg_rl.num_envs, radius_range=[50, 200], z_center=600, 
+        #     min_z=[-10, -30], max_z=[10, 30], min_y=None,
+        # )
         targets_enu = constrained_waypoint_sample(
-            cfg_rl.num_envs, radius_range=[50, 200], z_center=600, 
-            min_z=[-10, -30], max_z=[10, 30], min_y=None,
+            cfg_rl.num_envs, 
+            radius_range=cfg_rl.target_sampling.radius_range,
+            z_center=600, 
+            min_z=cfg_rl.target_sampling.min_z,
+            max_z=cfg_rl.target_sampling.max_z,
+            min_y=None,
+            z_constrained=cfg_rl.target_sampling.z_constrained,
         )
         targets = np.zeros_like(targets_enu)
         # if ENU mode waypoint tracking or straight path tracking, use the directly provided ENU coordinates

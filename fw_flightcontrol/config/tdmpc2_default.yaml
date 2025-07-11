@@ -8,6 +8,13 @@ defaults:
 
 
 rl:
+    # sampling targets
+    target_sampling:
+        min_z: ???
+        max_z: ???
+        z_constrained: ???
+        radius_range: ???
+
     # environment
     task: dog-run
     obs: state
