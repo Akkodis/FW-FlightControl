@@ -146,7 +146,17 @@ def run_simulations(env, agent, agent_name, targets_wp, severity_range, jsbsim_s
                 # Set target and get action
                 env.set_target_state(target_wp)
                 if agent_name.casefold() == "pid":
-                    action = pid_action(agent, env, path_target, target_wp)
+                    env_target_wp = [
+                        env.unwrapped.sim[prp.target_enu_e_m],
+                        env.unwrapped.sim[prp.target_enu_n_m],
+                        env.unwrapped.sim[prp.target_enu_u_m],
+                    ]
+                    env_path_target = [
+                        env.unwrapped.sim[prp.wp_course_rad],
+                        env.unwrapped.sim[prp.target_altitude_m],
+                        env.unwrapped.sim[prp.target_airspeed_kph],
+                    ]
+                    action = pid_action(agent, env, env_path_target, env_target_wp)
                 else:
                     action = agent.act(obs, t0=t==0, eval_mode=True)
 
