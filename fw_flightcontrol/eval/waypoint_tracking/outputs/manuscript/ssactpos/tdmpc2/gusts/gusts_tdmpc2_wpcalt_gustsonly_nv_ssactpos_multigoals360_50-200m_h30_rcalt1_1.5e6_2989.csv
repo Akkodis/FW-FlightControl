@@ -1,0 +1,5 @@
+Severity,Total Targets,Hard Misses,Misses,Reached,Success Rate (%),Avg Aileron Fluctuation,Avg Elevator Fluctuation,Avg Throttle Fluctuation,Avg Distance (m),Avg Distance Normalized (m),Avg Time (s)
+light,100,1,9,90,90.00,0.088061,0.095668,0.009511,180.62,1.46,10.97
+moderate,100,2,10,88,88.00,0.087961,0.094496,0.009717,186.76,1.50,10.98
+severe,100,9,7,84,84.00,0.088704,0.092607,0.009703,226.87,1.85,13.13
+AVERAGE,300,12,26,262,87.33,0.088242,0.094257,0.009644,198.08,1.60,11.69
