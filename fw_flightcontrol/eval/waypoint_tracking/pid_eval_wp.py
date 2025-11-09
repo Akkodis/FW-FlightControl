@@ -41,7 +41,7 @@ def eval(cfg: DictConfig):
     # Define the PID loops
     # lateral dynamics
     # inner loop
-    kp_roll: float = 0.5
+    kp_roll: float = 1.0
     ki_roll: float = 0.0
     kd_roll: float = 0.3
     roll_pid: PID = PID(kp=kp_roll, ki=ki_roll, kd=kd_roll,
@@ -105,7 +105,12 @@ def eval(cfg: DictConfig):
     targets_np_file = 'eval/waypoint_tracking/data/targets/target_100points360_50-200m_h100.npy'
     targets_enu = np.load(targets_np_file)
     # targets_enu = np.array([
-    #     [10, 50, 650],
+    #     # [0, 0, 630],
+    #     # [0, 200, 628],
+    #     # [0, 0, 572],
+    #     # [0, 200, 572]
+    #     # [0, 200, 630],
+    #     # [0, 200, 570],
     # ])
 
     targets_wp: np.ndarray = eval_sim.prepare_targets(env, targets_enu, cfg_rl, pid=True)
