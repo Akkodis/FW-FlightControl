@@ -137,7 +137,7 @@ class OnlineTrainer(Trainer):
 			if env_id == "DubinsPathTrackingIndep-v0":
 				done = truncated or (terminated and self.env.sim[prp.is_last_dubins_point])
 				if terminated:
-					print(f"\tEpisode reward: {info['episode']['r']}, finished at step {self.env.sim['info/current_step']}\n")
+					print(f"\tEpisode terminated at step {self.env.sim['info/current_step']}, Reward = {info['episode']['r']}\n")
 				if truncated:
 					print(f"*** Episode truncated at step {self.env.sim['info/current_step']}, Reward = {info['episode']['r']} ***\n")
 			else:
@@ -158,9 +158,10 @@ class OnlineTrainer(Trainer):
 
 			self._step += 1
 
+		self.logger.finish(self.agent)
+
 		# Final plot of a trajectory into wandb
 		if self.cfg.final_traj_plot:
 			train_utils.final_traj_plot(self.env, env_id, self.cfg_all.env.jsbsim, 
 										self.agent, self.agent.device, self.logger.exp_name)
 
-		self.logger.finish(self.agent)
