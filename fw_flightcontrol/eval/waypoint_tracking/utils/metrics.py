@@ -212,7 +212,7 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
         # Plot targets with different colors based on success level
         for ep, target_success_ep in enumerate(target_success[sev_cnt]):
             target_color = 'red'    # Hard miss (0)
-            label = 'Hard Miss'
+            label = 'Hard Missed'
             if target_success_ep == 1:
                 target_color = 'orange'  # Missed (1)
                 label = 'Missed'
@@ -281,17 +281,17 @@ def plot_trajectories(enu_positions, orientations, wind_vector, targets_enu, tar
                     R_localned2body = R.from_euler('ZYX', [yaw, pitch, roll]).as_matrix()
                     R_enu2body = R_ned2enu @ R_localned2body
 
-                    x_axis = R_enu2body[:, 0] * 3
-                    y_axis = R_enu2body[:, 1] * 3
-                    z_axis = -R_enu2body[:, 2] * 3
+                    x_axis = R_enu2body[:, 0] * 5
+                    y_axis = R_enu2body[:, 1] * 5
+                    z_axis = -R_enu2body[:, 2] * 5
                     ax.quiver(x, y, z, *x_axis, color='red')
                     ax.quiver(x, y, z, *y_axis, color='green')
                     ax.quiver(x, y, z, *z_axis, color='blue')
         
         # Set axis properties
-        ax.set_xlim(-100, 100)
-        ax.set_ylim(-100, 100)
-        ax.set_zlim(565, 635)
+        ax.set_xlim(-200, 200)
+        ax.set_ylim(-200, 200)
+        ax.set_zlim(575, 625)
         ax.set_xlabel('E [m]', fontsize=17)
         ax.set_ylabel('N [m]', fontsize=17)
         ax.set_zlabel('U [m]', fontsize=17)
