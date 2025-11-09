@@ -11,7 +11,7 @@ from fw_flightcontrol.agents import sac_norm, sac, ppo_norm, ppo
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
 from fw_jsbgym.utils import conversions
 from fw_jsbgym.utils import jsbsim_properties as prp
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, ListConfig
 
 # Global variables
 # Sequence of roll and pitch references for the the periodic evaluation
@@ -233,7 +233,7 @@ def periodic_eval_waypoints(env_id, ref_seq, cfg_mdp, cfg_sim, env, agent, devic
                 if term:
                     print(f"\tEpisode reward: {info['episode']['r']}, finished at step {t}\n")
                 if trunc:
-                    print(f"*** Episode truncated at step {t}, reward: {info['episode']['r']}***\n")
+                    print(f"*** Episode truncated at step {t}, reward: {info['episode']['r']} ***\n")
             else:
                 done = np.logical_or(term, trunc)
 
@@ -385,6 +385,13 @@ def make_env(env_id, cfg_env, render_mode, telemetry_file=None, eval=False, gamm
 
 
 def constrained_waypoint_sample(n_points, radius_range=50, z_center=600, min_z=-10, max_z=10, min_y=None, z_constrained=False):
+    if isinstance(radius_range, ListConfig):
+        radius_range = list(radius_range)
+    if isinstance(min_z, ListConfig):
+        min_z = list(min_z)
+    if isinstance(max_z, ListConfig):
+        max_z = list(max_z)
+
     if isinstance(radius_range, (list, tuple)) and len(radius_range) == 2:
         min_radius, max_radius = radius_range
         radius = np.random.uniform(min_radius, max_radius, size=n_points)
@@ -416,7 +423,7 @@ def constrained_waypoint_sample(n_points, radius_range=50, z_center=600, min_z=-
             denom = max_radius - min_radius if max_radius != min_radius else 1.0
             radius_norm = (radius - min_radius) / denom
             min_z_values = min_z_min + radius_norm * (min_z_max - min_z_min)
-            max_z_values = max_z_min + radius_norm * (max_z_max - min_z_min)
+            max_z_values = max_z_min + radius_norm * (max_z_max - max_z_min)
             z = np.random.uniform(min_z_values, max_z_values)
         else:
             min_z_val = min_z[0] if isinstance(min_z, (list, tuple)) else min_z
@@ -581,24 +588,26 @@ def final_traj_plot(e_env, env_id, cfg_sim, agent, device, run_name):
             break
 
     telemetry_df = pd.read_csv(telemetry_file)
-    traj_3d_points = telemetry_df[['position_enu_e_m', 'position_enu_n_m', 'position_enu_u_m']].to_numpy()
-    traj_3d = go.Scatter3d(x=traj_3d_points[:, 0], y=traj_3d_points[:, 1], z=traj_3d_points[:, 2], mode='lines')
-    start_point = go.Scatter3d(x=[traj_3d_points[0, 0]], y=[traj_3d_points[0, 1]], z=[traj_3d_points[0, 2]], mode='markers', marker=dict(size=5, color='red'))
-    target_point = go.Scatter3d(x=[target_enu[0]], y=[target_enu[1]], z=[target_enu[2]], mode='markers', marker=dict(size=5, color='green'))
-    fig = go.Figure(data=[traj_3d, start_point, target_point])
+    wandb.log({"FinalTraj/telemetry": wandb.Table(dataframe=telemetry_df)})
 
-    # compute figure axis limits based on the trajectory points and target point
-    x_min, x_max = min(traj_3d_points[:, 0].min(), target_enu[0]) - 10, max(traj_3d_points[:, 0].max(), target_enu[0]) + 10
-    y_min, y_max = min(traj_3d_points[:, 1].min(), target_enu[1]) - 10, max(traj_3d_points[:, 1].max(), target_enu[1]) + 10
-    z_min, z_max = min(traj_3d_points[:, 2].min(), target_enu[2]) - 10, max(traj_3d_points[:, 2].max(), target_enu[2]) + 10
+    if "AC" not in env_id:
+        traj_3d_points = telemetry_df[['position_enu_e_m', 'position_enu_n_m', 'position_enu_u_m']].to_numpy()
+        traj_3d = go.Scatter3d(x=traj_3d_points[:, 0], y=traj_3d_points[:, 1], z=traj_3d_points[:, 2], mode='lines')
+        start_point = go.Scatter3d(x=[traj_3d_points[0, 0]], y=[traj_3d_points[0, 1]], z=[traj_3d_points[0, 2]], mode='markers', marker=dict(size=5, color='red'))
+        target_point = go.Scatter3d(x=[target_enu[0]], y=[target_enu[1]], z=[target_enu[2]], mode='markers', marker=dict(size=5, color='green'))
+        fig = go.Figure(data=[traj_3d, start_point, target_point])
 
-    # Update layout to set axis limits
-    fig.update_layout(
-        scene=dict(
-            xaxis=dict(range=[x_min, x_max]),
-            yaxis=dict(range=[y_min, y_max]),
-            zaxis=dict(range=[z_min, z_max]),
-        )
-    ) 
-    wandb.log({"FinalTraj/telemetry": wandb.Table(dataframe=telemetry_df),
-               "FinalTraj/3D_trajectory": wandb.Plotly(fig)})
+        # compute figure axis limits based on the trajectory points and target point
+        x_min, x_max = min(traj_3d_points[:, 0].min(), target_enu[0]) - 10, max(traj_3d_points[:, 0].max(), target_enu[0]) + 10
+        y_min, y_max = min(traj_3d_points[:, 1].min(), target_enu[1]) - 10, max(traj_3d_points[:, 1].max(), target_enu[1]) + 10
+        z_min, z_max = min(traj_3d_points[:, 2].min(), target_enu[2]) - 10, max(traj_3d_points[:, 2].max(), target_enu[2]) + 10
+
+        # Update layout to set axis limits
+        fig.update_layout(
+            scene=dict(
+                xaxis=dict(range=[x_min, x_max]),
+                yaxis=dict(range=[y_min, y_max]),
+                zaxis=dict(range=[z_min, z_max]),
+            )
+        ) 
+        wandb.log({"FinalTraj/3D_trajectory": wandb.Plotly(fig)})
