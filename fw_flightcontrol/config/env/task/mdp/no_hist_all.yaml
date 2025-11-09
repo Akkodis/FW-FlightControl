@@ -4,3 +4,8 @@ obs_hist_size: 1
 
 action_avg: false
 act_hist_size: 5
+
+# this is only used by CourseAltTracking.
+# If True the actuators positions are in the state space.
+# If False, the past actions are in the state space.
+act_pos_in_state: True

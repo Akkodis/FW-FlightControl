@@ -14,18 +14,18 @@ eval_episodes: ??? # this value is overwritten by the size of the reference sequ
 final_traj_plot: true # simulate a final trajectory at the end of training (for visualization + log in wandb)
 
 # sampling targets (default in waypoint tracking)
-# target_sampling:
-#     min_z: [-10, -30]
-#     max_z: [10, 30]
-#     z_constrained: true
-#     radius_range: [50, 200]
+target_sampling:
+    min_z: [-10, -30]
+    max_z: [10, 30]
+    z_constrained: true
+    radius_range: [50, 200]
 
 # for dubins
-target_sampling:
-    min_z: -30
-    max_z: 30
-    z_constrained: false
-    radius_range: 200
+# target_sampling:
+#     min_z: -30
+#     max_z: 30
+#     z_constrained: false
+#     radius_range: 200
 
 # standalone eval
 eval:

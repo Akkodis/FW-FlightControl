@@ -21,6 +21,8 @@ train_sim_options:
             enable: False
     rand_fdm:
         enable: False
+    was_evaluating: False
+    eval: False
 
 # JSBSim simulation env options - eval
 eval_sim_options:
@@ -37,4 +39,6 @@ eval_sim_options:
             enable: False
     rand_fdm:
         enable: False
+    was_evaluating: True
+    eval: True
 
