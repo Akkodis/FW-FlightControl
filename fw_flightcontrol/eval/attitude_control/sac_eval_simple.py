@@ -31,6 +31,7 @@ def eval(cfg: DictConfig):
     # env setup
     env = make_env(cfg_sac.env_id, cfg.env, cfg_sim.render_mode,
                        'telemetry/telemetry.csv', eval=True)()
+    env.init()
 
     # loading the agent
     train_dict = torch.load(cfg.model_path, map_location=device)[0] # only load the actor's state dict

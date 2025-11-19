@@ -17,6 +17,7 @@ final_traj_plot: true # simulate a final trajectory at the end of training (for 
 
 # standalone eval
 ref_file: simple_easy
+res_file: test
 evaluated_traj_file: tdmpc2_evaluation_episodes
 metrics_file: tdmpc2_metrics_results
 im_traj: false

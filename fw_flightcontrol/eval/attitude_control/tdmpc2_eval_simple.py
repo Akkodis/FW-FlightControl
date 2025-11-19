@@ -5,7 +5,7 @@ import sys
 import csv
 import hydra
 
-sys.path.append(f'{os.path.dirname(os.path.abspath(__file__))}/../agents/tdmpc2/tdmpc2/')
+sys.path.append(f'{os.path.dirname(os.path.abspath(__file__))}/../../agents/tdmpc2/tdmpc2/')
 
 from omegaconf import DictConfig
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.common.parser import parse_cfg
@@ -13,7 +13,7 @@ from fw_flightcontrol.agents.tdmpc2.tdmpc2.envs import make_env
 from fw_flightcontrol.agents.tdmpc2.tdmpc2.tdmpc2 import TDMPC2
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="tdmpc2_default")
+@hydra.main(version_base=None, config_path="../../config", config_name="tdmpc2_default")
 def eval(cfg: DictConfig):
     np.set_printoptions(precision=3)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,10 +37,10 @@ def eval(cfg: DictConfig):
     agent.load(cfg.rl.checkpoint)
 
     # load the reference sequence and initialize the evaluation arrays
-    simple_ref_data = np.load(f'eval/targets/{cfg_rl.ref_file}.npy')
+    simple_ref_data = np.load(f'eval/attitude_control/targets/{cfg_rl.ref_file}.npy')
 
     # load the jsbsim seeds to apply at each reset and set the first seed
-    jsbsim_seeds = np.load(f'eval/targets/jsbsim_seeds.npy')
+    jsbsim_seeds = np.load(f'eval/attitude_control/targets/jsbsim_seeds.npy')
     cfg_sim.eval_sim_options.seed = float(jsbsim_seeds[0])
 
     # set default target values
@@ -84,12 +84,12 @@ def eval(cfg: DictConfig):
         ep_step = 0 # step counter within an episode
         step, t = 0, 0
         targets = simple_ref_data[ep_cnt]
-        roll_ref, pitch_ref = targets[0], targets[1]
         # default target values
         # roll_ref = np.deg2rad(-10)
         # pitch_ref = np.deg2rad(15)
+        # targets = np.array([roll_ref, pitch_ref])
         while step < total_steps:
-            env.set_target_state(roll_ref, pitch_ref)
+            env.set_target_state(targets)
             # action = agent.get_action_and_value(obs)[1].squeeze_(0).detach().cpu().numpy()
             action = agent.act(obs, t0=t==0, eval_mode=True)
             obs, reward, term, trunc, info = env.step(action)
