@@ -1,0 +1,3 @@
+[submodule "fw_flightcontrol/agents/tdmpc2"]
+	path = fw_flightcontrol/agents/tdmpc2
+	url = git@github.com:Dobid/tdmpc2.git

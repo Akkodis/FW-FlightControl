@@ -71,9 +71,9 @@ def eval(cfg: DictConfig):
     targets_np_file = 'eval/waypoint_tracking/data/targets/target_100points360_50-200m_h30.npy'
     # targets_np_file = 'eval/waypoint_tracking/data/targets/target_25points360_200m.npy'
     targets_enu = np.load(targets_np_file)
-    # targets_enu = np.array([
-    #     [89.226, -73.722, 620.873],
-    # ])
+    targets_enu = np.array([
+        [89.226, -73.722, 620.873],
+    ])
     targets_wp: np.ndarray = eval_sim.prepare_targets(env, targets_enu, cfg_rl)
 
     if cfg_rl.eval.run_eval_sims:
