@@ -6,6 +6,7 @@ Control algorithms, training and testing scripts for a x8 Fixed Wing UAV. Uses a
 Requires Python 3.10
 
 - Install [FW-JSBSim](https://github.com/Akkodis/FW-JSBGym)
+- Clone the repo and its submodules: `git clone --recurse-submodules git@github.com:Akkodis/FW-FlightControl.git`
 - Install `fw_flightcontrol` as a pip package with: `pip install -e .`
 
 ## Directory organization
