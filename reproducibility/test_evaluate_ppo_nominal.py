@@ -1,9 +1,13 @@
 import csv
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
-from evaluate_ppo_nominal import METRICS, paper_surface_fluctuation, read_metrics, sha256
+from evaluate_ppo_nominal import (
+    METRICS, evaluation_log_problems, paper_surface_fluctuation, read_metrics, sha256,
+    sim_profile_overrides, simulator_source_files,
+)
 
 
 class NominalResultTests(unittest.TestCase):
@@ -52,6 +56,69 @@ class NominalResultTests(unittest.TestCase):
     def test_paper_fluctuation_uses_only_two_surfaces(self) -> None:
         metrics = {"roll_fcs_fluct": 0.01, "pitch_fcs_fluct": 0.03, "avg_fcs_fluct": 99.0}
         self.assertAlmostEqual(paper_surface_fluctuation(metrics), 0.02)
+
+
+class SimulatorProfileTests(unittest.TestCase):
+    @staticmethod
+    def log(channels: int, profile_line: str = "") -> str:
+        return (
+            "Episode reward: 1\n" * 25 + "e_obs shape: (50000, 14)\n"
+            + f"eps_fcs_fluct shape: (25, {channels})\n" + profile_line
+        )
+
+    def test_default_profile_keeps_legacy_command(self) -> None:
+        self.assertEqual(sim_profile_overrides("current"), [])
+
+    def test_historical_profile_adds_config_key(self) -> None:
+        self.assertEqual(
+            sim_profile_overrides("icinco2024"), ["+env.jsbsim.sim_profile=icinco2024"]
+        )
+
+    def test_rejects_unknown_profile(self) -> None:
+        with self.assertRaises(ValueError):
+            sim_profile_overrides("icinco2023")
+
+    def test_accepts_expected_logs(self) -> None:
+        self.assertEqual(evaluation_log_problems(self.log(3), "current"), [])
+        self.assertEqual(
+            evaluation_log_problems(self.log(2, "Simulator profile: icinco2024\n"), "icinco2024"),
+            [],
+        )
+
+    def test_rejects_wrong_channel_count(self) -> None:
+        self.assertTrue(evaluation_log_problems(self.log(2), "current"))
+        self.assertTrue(
+            evaluation_log_problems(self.log(3, "Simulator profile: icinco2024\n"), "icinco2024")
+        )
+
+    def test_rejects_unconfirmed_historical_profile(self) -> None:
+        self.assertTrue(evaluation_log_problems(self.log(2), "icinco2024"))
+
+    def test_rejects_incomplete_or_unbounded_runs(self) -> None:
+        for log_text in (
+            self.log(3).replace("Episode reward: 1\n", "", 1),
+            self.log(3) + "Out of bounds\n",
+            self.log(3).replace("(50000, 14)", "(49999, 14)"),
+        ):
+            with self.subTest(log_text=log_text[-40:]):
+                self.assertTrue(evaluation_log_problems(log_text, "current"))
+
+
+class SimulatorSourceFileTests(unittest.TestCase):
+    def test_includes_untracked_but_not_ignored_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            package = root / "fw_jsbgym"
+            package.mkdir()
+            (root / ".gitignore").write_text("*.log\n")
+            for name in ("tracked.py", "untracked.py", "ignored.log"):
+                (package / name).write_text(name)
+            subprocess.run(["git", "-C", str(root), "add", "fw_jsbgym/tracked.py"], check=True)
+            self.assertEqual(
+                simulator_source_files(root),
+                [package / "tracked.py", package / "untracked.py"],
+            )
 
 
 if __name__ == "__main__":

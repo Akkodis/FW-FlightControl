@@ -7,6 +7,7 @@ Detailed investigations are journaled as dated reports:
 | Date | Report |
 |---|---|
 | 2026-10-30 | [ICINCO PPO seed 1: why current code no longer reproduces the archived scores](./reports/2026-10-30_icinco_ppo_seed1_drift_diagnosis.md) |
+| 2026-11-03 | [ICINCO 2024 simulator profile: restoring the paper-era behaviour as an opt-in](./reports/2026-11-03_icinco2024_sim_profile.md) |
 
 ## Repository starting points
 
@@ -216,12 +217,15 @@ PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
 ```
 
 It saves the exact invocation, selected package versions, commits/dirty state,
-input hashes, simulator file hashes and worktree diff, Hydra config, console log,
+input hashes, simulator file hashes (tracked and untracked, non-ignored) and
+worktree diff, simulator profile, Hydra config, console log,
 metric CSV, and comparison CSV. The separate `paper_surface_fluct` comparison
 row uses only the aileron/elevator columns; the original metrics are not rewritten.
-It checks episode counts, observation counts, finite metrics, and unchanged
-inputs. Exit zero means **evaluation completed**, not **paper scores matched**.
-No numerical acceptance tolerance has been chosen.
+It checks episode counts, observation counts, surface-history channels, finite
+metrics, and unchanged inputs. Exit zero means **evaluation completed**, not
+**paper scores matched**. No numerical acceptance tolerance has been chosen.
+Add `--sim-profile icinco2024` to evaluate with the ICINCO simulator profile
+(see below).
 
 The two completed runs are in the local, Git-ignored directory
 [`runs/icinco-ppo-seed1-easy-fw310-20261030`](./runs/icinco-ppo-seed1-easy-fw310-20261030):
@@ -260,16 +264,38 @@ isolated restorations are in
 [`icinco_ppo_diagnostic.patch`](./icinco_ppo_diagnostic.patch), an experiment
 artifact rather than a production fix.
 
+## ICINCO 2024 simulator profile
+
+The diagnosed restorations are now an opt-in FW-JSBGym simulator profile; see
+[`reports/2026-11-03_icinco2024_sim_profile.md`](./reports/2026-11-03_icinco2024_sim_profile.md).
+Select it on any FW-FlightControl command with `+env.jsbsim.sim_profile=icinco2024`,
+or with `--sim-profile icinco2024` on the launcher. It loads the paper-era X8
+model and initial conditions, resets integral errors only on target changes,
+records only aileron/elevator positions after the FDM step, and starts gusts at
+steps 500 and 1500. Without the key, behaviour is unchanged (`current`).
+
+With the profile, the seed-1 PPO evaluation reproduces the final diagnostic row
+exactly: mean RMSE `0.029106578` (+0.023% vs archive). The exported
+`avg_fcs_fluct` is now the paper's two-surface metric, `0.006306472` (+3.726%).
+The default profile still produces a metric file byte-identical to the
+current-code baseline.
+
+The same report records that the PPO/SAC training entry points no longer run
+against current FW-JSBGym: `init()` is never called and the `sample_targets`
+calls are stale. This blocks fresh-training checks until it is repaired.
+
 ## Next checkpoint
 
-1. Review the diagnosis before changing shared behavior. Add explicit historical
-   compatibility choices for the integral observations, dynamics/initial conditions,
-   and two-surface metric, with regression tests. Do not assume SNCS checkpoints
-   trained after these changes expect the same semantics as ICINCO.
-2. Resolve or explicitly characterize the small remaining discrepancy, then extend
-   to medium/hard references, other seeds, and the remaining algorithms.
-3. Complete the archived-result/config inventory and definitive paper-era mapping.
-   Fresh seed-1 training and structural refactors remain separate future gates.
+1. Repair the PPO training entry point for the ICINCO protocol: call `init()`,
+   restore `sample_targets` usage, and check the target-sampling settings against
+   the paper-era code. Then run fresh seed-1 training with `icinco2024` and
+   evaluate it against the archive.
+2. Resolve or explicitly characterize the small remaining fluctuation
+   discrepancy, then extend to medium/hard references, other seeds, gust
+   conditions, and the remaining algorithms. Do not assume SNCS checkpoints
+   trained after these changes expect the ICINCO semantics.
+3. Complete the archived-result/config inventory and definitive paper-era
+   mapping. Structural refactors remain separate future gates.
 
 Do not overwrite historical outputs, upgrade packages, or run expensive training
 until the relevant baseline protocol is understood.

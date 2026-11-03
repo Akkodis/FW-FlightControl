@@ -1,6 +1,7 @@
 """Run the unchanged ICINCO PPO evaluator on seed 1 / easy references / no wind.
 
 Outputs are isolated, CPU inference is selected, and archived results are only read.
+`--sim-profile icinco2024` selects the FW-JSBGym simulator profile of the ICINCO experiments.
 A completed evaluation is not a successful paper-reproduction gate.
 """
 
@@ -22,6 +23,9 @@ METRICS = (
     "roll_rmse", "pitch_rmse", "roll_fcs_fluct", "pitch_fcs_fluct",
     "avg_rmse", "avg_fcs_fluct",
 )
+DEFAULT_SIM_PROFILE = "current"
+# Recorded control surface channels: aileron, elevator (+ throttle in the current profile).
+SIM_PROFILE_FCS_CHANNELS = {"current": 3, "icinco2024": 2}
 
 
 def sha256(path: Path) -> str:
@@ -55,12 +59,46 @@ def paper_surface_fluctuation(metrics: dict[str, float]) -> float:
     return (metrics["roll_fcs_fluct"] + metrics["pitch_fcs_fluct"]) / 2
 
 
+def simulator_source_files(simulator: Path) -> list[Path]:
+    """Tracked and untracked, non-ignored simulator package files."""
+    names = git_output(
+        simulator, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "fw_jsbgym"
+    ).split("\0")
+    return [simulator / name for name in sorted(set(names)) if name]
+
+
+def sim_profile_overrides(sim_profile: str) -> list[str]:
+    if sim_profile not in SIM_PROFILE_FCS_CHANNELS:
+        raise ValueError(f"Unknown simulator profile: {sim_profile}")
+    # The default profile adds no key so that simulators predating profiles can still be compared.
+    return [] if sim_profile == DEFAULT_SIM_PROFILE else [f"+env.jsbsim.sim_profile={sim_profile}"]
+
+
+def evaluation_log_problems(log_text: str, sim_profile: str) -> list[str]:
+    problems = []
+    if log_text.count("Episode reward:") != 25:
+        problems.append("expected 25 episodes")
+    if "Out of bounds" in log_text:
+        problems.append("an episode went out of bounds")
+    if "e_obs shape: (50000, 14)" not in log_text:
+        problems.append("expected 50,000 observations of size 14")
+    if f"eps_fcs_fluct shape: (25, {SIM_PROFILE_FCS_CHANNELS[sim_profile]})" not in log_text:
+        problems.append(f"unexpected control surface channels for profile {sim_profile}")
+    if sim_profile != DEFAULT_SIM_PROFILE and f"Simulator profile: {sim_profile}" not in log_text:
+        problems.append(f"simulator did not confirm profile {sim_profile}")
+    return problems
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output_dir", type=Path, help="New directory; must not exist")
     parser.add_argument(
         "--simulator-root", type=Path,
         help="Separate FW-JSBGym Git worktree for controlled diagnostic comparisons",
+    )
+    parser.add_argument(
+        "--sim-profile", choices=sorted(SIM_PROFILE_FCS_CHANNELS), default=DEFAULT_SIM_PROFILE,
+        help="FW-JSBGym simulator profile (default: %(default)s)",
     )
     args = parser.parse_args()
     output = args.output_dir.resolve()
@@ -70,11 +108,7 @@ def main() -> None:
         raise ValueError(f"Simulator path must be a Git worktree root: {simulator}")
     if not (simulator / "fw_jsbgym/__init__.py").is_file():
         raise ValueError(f"Simulator package is missing from {simulator}")
-    simulator_files = [
-        simulator / name
-        for name in git_output(simulator, "ls-files", "-z", "--", "fw_jsbgym").split("\0")
-        if name
-    ]
+    simulator_files = simulator_source_files(simulator)
     simulator_hashes = {
         str(path.relative_to(simulator)): sha256(path) for path in simulator_files
     }
@@ -115,6 +149,7 @@ def main() -> None:
         "env.jsbsim.debug=false",
         "env.jsbsim.eval_sim_options.atmosphere.severity=off",
         "hydra.run.dir=hydra", "hydra.job.chdir=false",
+        *sim_profile_overrides(args.sim_profile),
     ]
     metadata = {
         "started_utc": datetime.now(timezone.utc).isoformat(),
@@ -143,6 +178,7 @@ def main() -> None:
             "steps": 50000, "episodes": 25, "steps_per_episode": 2000,
             "agent_hz": 100, "fdm_hz": 100,
             "reference_subset": "simple_easy", "atmosphere": "off",
+            "sim_profile": args.sim_profile,
         },
     }
     output.mkdir(parents=True, exist_ok=False)
@@ -158,14 +194,9 @@ def main() -> None:
             command, cwd=output, env={**os.environ, **child_env},
             stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600,
         )
-    log_text = log_path.read_text()
-    if (
-        log_text.count("Episode reward:") != 25
-        or "Out of bounds" in log_text
-        or "e_obs shape: (50000, 14)" not in log_text
-        or "eps_fcs_fluct shape: (25, 3)" not in log_text
-    ):
-        raise RuntimeError(f"Nominal episode/observation checks failed; inspect {log_path}")
+    problems = evaluation_log_problems(log_path.read_text(), args.sim_profile)
+    if problems:
+        raise RuntimeError(f"Evaluation checks failed ({'; '.join(problems)}); inspect {log_path}")
     if any(sha256(path) != input_hashes[str(path.relative_to(repo.parent))] for path in inputs):
         raise RuntimeError("An input changed during evaluation; results are not a stable baseline")
     if any(sha256(path) != simulator_hashes[str(path.relative_to(simulator))] for path in simulator_files):
@@ -188,9 +219,10 @@ def main() -> None:
             })
     print(f"Completed 25 episodes / 50,000 steps. Comparison: {output / 'comparison.csv'}")
     print(f"Average RMSE: {current['avg_rmse']:.8f}; archive: {historical['avg_rmse']:.8f}")
+    channels = "includes throttle" if SIM_PROFILE_FCS_CHANNELS[args.sim_profile] == 3 else "two surfaces"
     print(
         f"Paper two-surface fluctuation: {current['paper_surface_fluct']:.8f}; "
-        f"legacy aggregate (includes throttle): {current['avg_fcs_fluct']:.8f}"
+        f"legacy aggregate ({channels}): {current['avg_fcs_fluct']:.8f}"
     )
     print("No paper-reproduction tolerance has been established; inspect the differences.")
 

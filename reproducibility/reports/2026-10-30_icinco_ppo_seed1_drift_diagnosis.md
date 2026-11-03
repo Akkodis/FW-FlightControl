@@ -230,6 +230,9 @@ Use `git apply --include=<path>` to restore one factor at a time.
 
 ## Follow-up decisions
 
+The first two decisions were implemented on 2026-11-03; see
+[2026-11-03: ICINCO 2024 simulator profile](./2026-11-03_icinco2024_sim_profile.md).
+
 - Represent the restored behaviour as an explicit, opt-in ICINCO compatibility
   profile; keep current behaviour as the default.
 - Report the paper's two-surface fluctuation explicitly in reproduction tools.
