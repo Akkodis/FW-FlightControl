@@ -175,6 +175,11 @@ Fresh seed-1 training therefore needs its own slice. It must:
 
 ## Follow-up decisions
 
+Update: the [training/device checkpoint](./2026-11-03_icinco_ppo_training.md)
+repairs the standard PPO entry point and shows that CUDA evaluation reduces
+the +3.7% CPU fluctuation gap to -0.155%. The remaining trainers and full paper
+coverage are separate gates.
+
 - Commit the profile (FW-JSBGym) and launcher support (FW-FlightControl)
   together. Then create `paper/icinco` in both repositories from this pair,
   labelled as a reproduction candidate. No `icinco-repro-*` tag until the

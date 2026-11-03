@@ -8,6 +8,7 @@ Detailed investigations are journaled as dated reports:
 |---|---|
 | 2026-10-30 | [ICINCO PPO seed 1: why current code no longer reproduces the archived scores](./reports/2026-10-30_icinco_ppo_seed1_drift_diagnosis.md) |
 | 2026-11-03 | [ICINCO 2024 simulator profile: restoring the paper-era behaviour as an opt-in](./reports/2026-11-03_icinco2024_sim_profile.md) |
+| 2026-11-03 | [PPO training repair and CPU/CUDA discrepancy](./reports/2026-11-03_icinco_ppo_training.md) |
 
 ## Repository starting points
 
@@ -20,8 +21,8 @@ Both repositories were clean on local `main` before creating matching
 | FW-JSBGym | `571a52fe02ec3f7fc78968a076fa68a536be1455` |
 
 These are local starting commits, not yet verified paper-era commits. Neither `main`
-branch was moved. No training, simulator, network, metric, or configuration behavior
-has been changed.
+branch was moved. The subsequent opt-in simulator profile and PPO entry-point
+repairs are documented in the journal above; archived inputs remain unchanged.
 
 ## Input checksum snapshot
 
@@ -37,8 +38,8 @@ with paths relative to the enclosing `FW-RL` directory. It covers:
 - both package setup files and the two JSBGym environment manifests.
 
 Checkpoints total approximately 2332 MiB. They were hashed as files, not deserialized.
-No training or full paper evaluation matrix has been executed. A ten-step PPO
-smoke check and one full evaluation condition were subsequently completed below.
+This initial snapshot preceded training and evaluation. Subsequent runs are
+documented below and in the dated reports; the full paper matrix remains unchecked.
 
 To verify the snapshot from this repository's root:
 
@@ -207,7 +208,9 @@ back dynamics or adjust tolerances merely to match the scores.
 
 [`evaluate_ppo_nominal.py`](./evaluate_ppo_nominal.py) launches the existing
 evaluator in a **new** directory and refuses to reuse an existing output path.
-It sets local-source paths and CPU execution only for its child process.
+It sets local-source paths and defaults to CPU execution for its child process.
+Use `--device cuda` for GPU inference, or `--checkpoint /path/to/fresh.pt`
+to evaluate a freshly trained model against the archived seed-1 result.
 From the FlightControl repository root:
 
 ```bash
@@ -258,7 +261,10 @@ In short, three post-ICINCO FW-JSBGym changes explain the large differences:
 
 Restoring these, plus the historical initial conditions and post-step surface
 sampling, gives mean RMSE `0.029106578` (+0.023% vs archive) and paper surface
-fluctuation `0.006306472` (+3.726%). The remaining fluctuation gap is open.
+fluctuation `0.006306472` (+3.726%) on CPU. The later
+[device comparison](./reports/2026-11-03_icinco_ppo_training.md) reduces this to
+`0.006070544` (-0.155%) on CUDA; both Python environments give identical
+results per device.
 Per-variant values are in [`ppo_diagnosis.csv`](./ppo_diagnosis.csv); the
 isolated restorations are in
 [`icinco_ppo_diagnostic.patch`](./icinco_ppo_diagnostic.patch), an experiment
@@ -280,18 +286,40 @@ exactly: mean RMSE `0.029106578` (+0.023% vs archive). The exported
 The default profile still produces a metric file byte-identical to the
 current-code baseline.
 
-The same report records that the PPO/SAC training entry points no longer run
-against current FW-JSBGym: `init()` is never called and the `sample_targets`
-calls are stale. This blocks fresh-training checks until it is repaired.
+The same report identified broken training entry points. The standard PPO
+entry point is now repaired and has optimizer/autoreset regression tests.
+The other legacy trainers are not covered by this repair.
+
+## Fresh seed-1 PPO training
+
+[`train_ppo_icinco.py`](./train_ppo_icinco.py) runs the full 750k requested budget
+(749,568 transitions in complete rollouts), then evaluates the final checkpoint.
+It disables remote tracking, isolates all outputs, records source and input
+hashes, and compares against pre-recorded five-seed archive ranges.
+
+```bash
+CUDA_VISIBLE_DEVICES=0 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
+    reproducibility/train_ppo_icinco.py --device cuda \
+    reproducibility/runs/fresh-seed1-new
+```
+
+Add `--smoke` for a 4,096-transition training check, not a paper-score check.
+See the [training report](./reports/2026-11-03_icinco_ppo_training.md) for the
+protocol, sampling-stream limitations, results and the CPU/CUDA distinction.
+
+The completed full-budget CUDA run gives mean RMSE **0.029783230** and
+surface fluctuation **0.008754005891**, both within the five archived seed
+ranges recorded before training. Fluctuation is still **+43.98% vs archived
+seed 1**; this is not exact same-seed reconstruction. CUDA reevaluation is
+byte-identical. The paired `paper/icinco` branches are limited-scope
+reproduction candidates, not tagged full-paper releases.
 
 ## Next checkpoint
 
-1. Repair the PPO training entry point for the ICINCO protocol: call `init()`,
-   restore `sample_targets` usage, and check the target-sampling settings against
-   the paper-era code. Then run fresh seed-1 training with `icinco2024` and
-   evaluate it against the archive.
-2. Resolve or explicitly characterize the small remaining fluctuation
-   discrepancy, then extend to medium/hard references, other seeds, gust
+1. Extend preserved and fresh PPO evaluation to medium/hard references; combine
+   easy and medium as in the actual paper table, rather than calling easy-only
+   results the full nominal score.
+2. Extend to other seeds, gust
    conditions, and the remaining algorithms. Do not assume SNCS checkpoints
    trained after these changes expect the ICINCO semantics.
 3. Complete the archived-result/config inventory and definitive paper-era

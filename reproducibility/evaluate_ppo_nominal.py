@@ -1,6 +1,6 @@
-"""Run the unchanged ICINCO PPO evaluator on seed 1 / easy references / no wind.
+"""Run the unchanged ICINCO PPO evaluator on easy references / no wind.
 
-Outputs are isolated, CPU inference is selected, and archived results are only read.
+Defaults to the archived seed-1 checkpoint and CPU; archives are only read.
 `--sim-profile icinco2024` selects the FW-JSBGym simulator profile of the ICINCO experiments.
 A completed evaluation is not a successful paper-reproduction gate.
 """
@@ -92,6 +92,8 @@ def evaluation_log_problems(log_text: str, sim_profile: str) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output_dir", type=Path, help="New directory; must not exist")
+    parser.add_argument("--checkpoint", type=Path, help="Evaluate a fresh checkpoint instead of the archive")
+    parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument(
         "--simulator-root", type=Path,
         help="Separate FW-JSBGym Git worktree for controlled diagnostic comparisons",
@@ -114,7 +116,7 @@ def main() -> None:
     }
     package = repo / "fw_flightcontrol"
     evaluation = package / "eval/attitude_control"
-    checkpoint = (
+    checkpoint = args.checkpoint.resolve() if args.checkpoint else (
         package / "models/icinco/ppo/noactreg"
         / "ppo_bohnmlp_noactreg_nohist_noatmo_1_22-05_18:46:52.pt"
     )
@@ -135,14 +137,15 @@ def main() -> None:
         package / "config/env/task/mdp/no_hist_all.yaml",
         package / "config/env/task/reward/ac_my_bohn.yaml",
     ]
-    input_hashes = {str(path.relative_to(repo.parent)): sha256(path) for path in inputs}
+    input_hashes = {os.path.relpath(path, repo.parent): sha256(path) for path in inputs}
     child_env = {
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONPATH": os.pathsep.join((str(simulator), str(repo))),
-        "CUDA_VISIBLE_DEVICES": "",
         "OMP_NUM_THREADS": "1",
         "MKL_NUM_THREADS": "1",
     }
+    if args.device == "cpu":
+        child_env["CUDA_VISIBLE_DEVICES"] = ""
     command = [
         sys.executable, str(evaluation / "ppo_eval_simple.py"),
         f"model_path={checkpoint}", "ref_file=simple_easy", "res_file=ppo_seed1_easy",
@@ -174,7 +177,9 @@ def main() -> None:
         "command": command,
         "process_environment": child_env,
         "protocol": {
-            "checkpoint_seed": 1, "runtime_seed": 10, "device": "cpu",
+            "checkpoint": str(checkpoint),
+            "checkpoint_kind": "supplied" if args.checkpoint else "archived_seed1",
+            "runtime_seed": 10, "device": args.device,
             "steps": 50000, "episodes": 25, "steps_per_episode": 2000,
             "agent_hz": 100, "fdm_hz": 100,
             "reference_subset": "simple_easy", "atmosphere": "off",
@@ -195,9 +200,11 @@ def main() -> None:
             stdout=log, stderr=subprocess.STDOUT, check=True, timeout=600,
         )
     problems = evaluation_log_problems(log_path.read_text(), args.sim_profile)
+    if f"Using Device: {args.device}" not in log_path.read_text():
+        problems.append(f"evaluator did not use requested device {args.device}")
     if problems:
         raise RuntimeError(f"Evaluation checks failed ({'; '.join(problems)}); inspect {log_path}")
-    if any(sha256(path) != input_hashes[str(path.relative_to(repo.parent))] for path in inputs):
+    if any(sha256(path) != input_hashes[os.path.relpath(path, repo.parent)] for path in inputs):
         raise RuntimeError("An input changed during evaluation; results are not a stable baseline")
     if any(sha256(path) != simulator_hashes[str(path.relative_to(simulator))] for path in simulator_files):
         raise RuntimeError("Simulator sources changed during evaluation; results are not stable")

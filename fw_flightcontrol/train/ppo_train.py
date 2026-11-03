@@ -38,6 +38,9 @@ def train(cfg: DictConfig):
     cfg_ppo = cfg.rl.PPO
     cfg_sim = cfg.env.jsbsim
     cfg_mdp = cfg.env.task.mdp
+    target_cfg = OmegaConf.merge(
+        OmegaConf.masked_copy(cfg, ["roll_limit", "pitch_limit"]), cfg_ppo
+    )
 
     np.set_printoptions(precision=3)
 
@@ -84,6 +87,8 @@ def train(cfg: DictConfig):
         [train_utils.make_env(cfg_ppo.env_id, cfg.env, cfg_sim.render_mode, None, eval=False, gamma=cfg_ppo.gamma) for i in range(cfg_ppo.num_envs)]
     )
     unwr_envs = [envs.envs[i].unwrapped for i in range(cfg_ppo.num_envs)]
+    for env in unwr_envs:
+        env.init()
     print("Single Env Observation Space Shape = ", envs.single_observation_space.shape)
 
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
@@ -116,7 +121,7 @@ def train(cfg: DictConfig):
     next_terminated = torch.zeros(cfg_ppo.num_envs).to(device)
     num_updates = cfg_ppo.total_timesteps // cfg_ppo.batch_size
 
-    targets = train_utils.sample_targets(False, cfg_ppo.env_id, cfg_ppo)
+    targets = train_utils.sample_targets(False, cfg_ppo.env_id, unwr_envs[0], target_cfg)
 
     for update in tqdm(range(1, num_updates + 1)):
         # Annealing the rate if instructed to do so.
@@ -177,7 +182,7 @@ def train(cfg: DictConfig):
             for env_i, done in enumerate(dones):
                 if done:
                     obs_t1[step][env_i] = obs[step][env_i]
-                    targets[env_i] = train_utils.sample_targets(True, cfg_ppo.env_id, cfg_ppo)
+                    targets[env_i] = train_utils.sample_targets(True, cfg_ppo.env_id, unwr_envs[env_i], target_cfg)
                     # if cfg_ppo.ref_sampler == "beta":
                     #     if cfg_ppo.beta_params is not None:
                     #         roll_targets[env_i] = np.random.beta(cfg_ppo.beta_params[0], cfg_ppo.beta_params[1]) * roll_limit*2 - roll_limit
