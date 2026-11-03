@@ -26,6 +26,11 @@ METRICS = (
 DEFAULT_SIM_PROFILE = "current"
 # Recorded control surface channels: aileron, elevator (+ throttle in the current profile).
 SIM_PROFILE_FCS_CHANNELS = {"current": 3, "icinco2024": 2}
+REFERENCE_SETS = {
+    "easy": ("simple_easy", "easyrefs"),
+    "medium": ("simple_medium", "medrefs"),
+    "hard": ("simple_hard", "hardrefs"),
+}
 
 
 def sha256(path: Path) -> str:
@@ -102,6 +107,10 @@ def main() -> None:
         "--sim-profile", choices=sorted(SIM_PROFILE_FCS_CHANNELS), default=DEFAULT_SIM_PROFILE,
         help="FW-JSBGym simulator profile (default: %(default)s)",
     )
+    parser.add_argument(
+        "--reference-set", choices=sorted(REFERENCE_SETS), default="easy",
+        help="Attitude reference difficulty set (default: %(default)s)",
+    )
     args = parser.parse_args()
     output = args.output_dir.resolve()
     repo = Path(__file__).resolve().parents[1]
@@ -122,14 +131,14 @@ def main() -> None:
     )
     archive = (
         evaluation / "outputs/icinco/ppo/noactreg_noatmo"
-        / "ppo_bohnmlp_noactreg_nohist_noatmo_easyrefs_1.csv"
+        / f"ppo_bohnmlp_noactreg_nohist_noatmo_{REFERENCE_SETS[args.reference_set][1]}_1.csv"
     )
     historical = read_metrics(archive)
     inputs = [
         Path(__file__).resolve(),
         repo / "reproducibility/historical_inputs.sha256",
         checkpoint, archive, evaluation / "ppo_eval_simple.py",
-        evaluation / "targets/simple_easy.npy",
+        evaluation / f"targets/{REFERENCE_SETS[args.reference_set][0]}.npy",
         evaluation / "targets/jsbsim_seeds.npy",
         package / "config/default.yaml",
         package / "config/rl/ppo.yaml",
@@ -148,7 +157,8 @@ def main() -> None:
         child_env["CUDA_VISIBLE_DEVICES"] = ""
     command = [
         sys.executable, str(evaluation / "ppo_eval_simple.py"),
-        f"model_path={checkpoint}", "ref_file=simple_easy", "res_file=ppo_seed1_easy",
+        f"model_path={checkpoint}", f"ref_file={REFERENCE_SETS[args.reference_set][0]}",
+        f"res_file=ppo_seed1_{args.reference_set}",
         "env.jsbsim.debug=false",
         "env.jsbsim.eval_sim_options.atmosphere.severity=off",
         "hydra.run.dir=hydra", "hydra.job.chdir=false",
@@ -182,7 +192,7 @@ def main() -> None:
             "runtime_seed": 10, "device": args.device,
             "steps": 50000, "episodes": 25, "steps_per_episode": 2000,
             "agent_hz": 100, "fdm_hz": 100,
-            "reference_subset": "simple_easy", "atmosphere": "off",
+            "reference_subset": args.reference_set, "atmosphere": "off",
             "sim_profile": args.sim_profile,
         },
     }
@@ -209,7 +219,7 @@ def main() -> None:
     if any(sha256(path) != simulator_hashes[str(path.relative_to(simulator))] for path in simulator_files):
         raise RuntimeError("Simulator sources changed during evaluation; results are not stable")
 
-    current = read_metrics(output / "eval/outputs/ppo_seed1_easy.csv")
+    current = read_metrics(output / f"eval/outputs/ppo_seed1_{args.reference_set}.csv")
     historical["paper_surface_fluct"] = paper_surface_fluctuation(historical)
     current["paper_surface_fluct"] = paper_surface_fluctuation(current)
     with (output / "comparison.csv").open("x", newline="") as stream:
@@ -224,7 +234,10 @@ def main() -> None:
                 "delta": value - previous,
                 "delta_percent": 100 * (value / previous - 1) if previous else None,
             })
-    print(f"Completed 25 episodes / 50,000 steps. Comparison: {output / 'comparison.csv'}")
+    print(
+        f"Completed 25 {args.reference_set} episodes / 50,000 steps. "
+        f"Comparison: {output / 'comparison.csv'}"
+    )
     print(f"Average RMSE: {current['avg_rmse']:.8f}; archive: {historical['avg_rmse']:.8f}")
     channels = "includes throttle" if SIM_PROFILE_FCS_CHANNELS[args.sim_profile] == 3 else "two surfaces"
     print(

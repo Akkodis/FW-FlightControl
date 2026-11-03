@@ -144,18 +144,33 @@ average, are in [`../ppo_diagnosis.csv`](../ppo_diagnosis.csv).
   The paper does not say whether a change on one axis also resets the other
   axis's integral. That makes no difference here: ICINCO targets change only
   at episode boundaries, where `reset_target_state` zeroes both integrals.
-  `current` is still the default, but this regression does not affect SNCS
-  (checked 2026-11-03, see "SNCS exposure" below), so making the paper rule
-  the default awaits only the author's decision.
-- **SNCS exposure:** none for the published metrics.
+  This clarification leaves simulator defaults unchanged. The waypoint check
+  below establishes independence from this reset flag, not compatibility of
+  every other task or checkpoint with a default-behaviour change.
+- **SNCS exposure:** waypoint tracking is unaffected by this specific reset
+  regression; the same conclusion does not apply to attitude control.
   - The SNCS waypoint MDPs (`CourseAltTracking`, `CourseAltNoVaTracking`) have no
     integral-error observations and do not inherit from `ACBohnNoVaIErrTask`.
-    All three saved SNCS variants (SS-Vanilla, SS-ActPos, PI-Throttle) take a
-    19-dimensional input, which matches that integral-free state.
+    The state definitions for SS-Vanilla, SS-ActPos and PI-Throttle each have
+    19 values, including neither roll nor pitch integral error.
   - The airspeed PI controller and the waypoint PID baseline keep their own
     integrator state, independent of this code.
-  - Every SNCS attitude-control table and figure is marked "reproduced from"
-    ICINCO, so those results belong to the `icinco2024` semantics.
+  - SNCS still includes roll and pitch integral errors in its attitude-control
+    MDP (Eq. 16). Its reused ICINCO attitude results, including Tables 9 and 10
+    marked "reproduced from [11]", require historical integral semantics when
+    re-evaluated. They are not evidence that the regression is harmless for
+    attitude control.
+  - **Runtime check (2026-11-03, `fw-310`):** for each of the three waypoint
+    variants, compared the `current` profile against a copy with only
+    `reset_integral_errors_every_target_call` changed from `True` to `False`.
+    Used seed 1, no atmosphere, fixed actions, and two 10-step episodes at
+    100 Hz, with a waypoint change halfway through each episode. Normalized
+    and raw observations, rewards, termination/truncation/success flags, ENU
+    positions and actual actuator positions were exactly equal at every step.
+    The PI-throttle variant computed its own throttle throughout the check.
+    This is an isolated reset-flag check, not a full SNCS policy evaluation or
+    a comparison between the complete `current` and `icinco2024` profiles:
+    other profile differences, such as aircraft dynamics, can still matter.
 
 ### 2. X8 drag model: confirmed dynamics change
 
@@ -193,18 +208,22 @@ average, are in [`../ppo_diagnosis.csv`](../ppo_diagnosis.csv).
 
 ## Open questions
 
-- **Remaining +3.7% surface fluctuation.** Candidates include other source
-  differences since the paper-era commit, the JSBSim build (the archive may have
-  been produced with a different JSBSim version), and numerical or device
-  differences. None is established. A same-stack comparison with
-  `fw-tdmpc2-39` (JSBSim 1.2.3.dev1) is a cheap next diagnostic.
+- **Surface fluctuation is device-sensitive; its historical cause is not
+  fully established.** Repeating the preserved-checkpoint evaluation on CPU
+  gives +3.726% versus the archive; CUDA gives -0.155%. These results match
+  across `fw-310` and `fw-tdmpc2-39`, so the Python/JSBSim difference does not
+  explain the residual. See the [CPU/CUDA comparison](./2026-11-03_icinco_ppo_training.md).
+  Device sensitivity explains the large CPU discrepancy, but the archive's
+  evaluation device and the remaining CUDA difference's exact cause are
+  unknown. No correction or acceptance tolerance has been applied.
 - **Exact paper-era commits** are still unknown. Local Hydra snapshots support
   the selected configuration, but FW-FlightControl `f71acbe` hard-codes
   55°/28° targets, so a saved config alone does not prove the historical
   protocol.
-- **Coverage:** only one seed, one algorithm, one reference subset, and the
-  nominal atmosphere were evaluated. SAC, TD-MPC2, PID, medium/hard references,
-  atmosphere conditions, other seeds, and fresh training remain unchecked.
+- **Coverage:** preserved seed-1 PPO has now been checked on easy, medium and
+  hard references in nominal atmosphere. Other seeds, SAC, TD-MPC2, PID, and
+  turbulence/gust conditions remain unchecked. Fresh seed-1 PPO training is
+  documented separately; it has not yet been repeated for other algorithms.
 - **SNCS:** the integral-reset regression does not affect SNCS (Finding 1).
   The drag table and surface-history changes still need checking against the
   SNCS waypoint checkpoints. Apply restorations only through explicit profiles,
@@ -259,6 +278,8 @@ The first two decisions were implemented on 2026-11-03; see
 - Represent the restored behaviour as an explicit, opt-in ICINCO compatibility
   profile; keep current behaviour as the default.
 - Report the paper's two-surface fluctuation explicitly in reproduction tools.
-- Investigate the remaining fluctuation gap before setting tolerances.
-- Extend checks to other conditions, seeds, and algorithms, then fresh seed-1
-  training.
+- Measure device sensitivity before setting tolerances: the CPU/CUDA comparison
+  is complete; the remaining -0.155% CUDA fluctuation difference is unresolved.
+- Extend preserved-checkpoint checks to medium and hard references (complete
+  for seed-1 PPO, nominal atmosphere). Turbulence/gust conditions, other seeds
+  and algorithms remain; fresh seed-1 training is complete for PPO only.

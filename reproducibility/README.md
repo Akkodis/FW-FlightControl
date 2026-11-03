@@ -210,13 +210,25 @@ back dynamics or adjust tolerances merely to match the scores.
 evaluator in a **new** directory and refuses to reuse an existing output path.
 It sets local-source paths and defaults to CPU execution for its child process.
 Use `--device cuda` for GPU inference, or `--checkpoint /path/to/fresh.pt`
-to evaluate a freshly trained model against the archived seed-1 result.
+to evaluate a freshly trained model against the archived seed-1 result. The
+default reference set is `easy`; select `--reference-set medium` or
+`--reference-set hard` to compare against the corresponding archived seed-1 set.
 From the FlightControl repository root:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
     reproducibility/evaluate_ppo_nominal.py \
     reproducibility/runs/ppo-seed1-easy-new-run
+```
+
+For example, to evaluate the preserved checkpoint on medium references with
+the ICINCO profile and CUDA inference:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
+    reproducibility/evaluate_ppo_nominal.py --sim-profile icinco2024 \
+    --device cuda --reference-set medium \
+    reproducibility/runs/ppo-seed1-medium-cuda
 ```
 
 It saves the exact invocation, selected package versions, commits/dirty state,

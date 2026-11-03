@@ -44,6 +44,44 @@ The original CPU result is in `../runs/sim-profile-20261103/icinco2024/`.
 Every run retains its invocation, input hashes, package versions, log, Hydra
 config, raw metric CSV and comparison CSV.
 
+## Preserved checkpoint: medium and hard references
+
+The isolated evaluator now accepts `--reference-set easy|medium|hard`; easy
+remains the default. The fixed reference arrays and seed-1 archived CSVs were
+selected by matching reference-set names, and each new run records the chosen
+set and its input hashes.
+
+The archived seed-1 checkpoint was evaluated on all 25 medium and 25 hard
+references with `fw-310`, CUDA inference, nominal atmosphere, and the
+`icinco2024` profile. The easy CUDA row is included from the prior controlled
+runtime comparison:
+
+| Reference set | Metric | Archived | Re-evaluated | Difference |
+|---|---|---:|---:|---:|
+| Easy | Mean RMSE (rad) | 0.029099766 | 0.029096860 | -0.010% |
+| Easy | Two-surface fluctuation | 0.006079950 | 0.006070544 | -0.155% |
+| Medium | Mean RMSE (rad) | 0.073654940 | 0.073655420 | +0.0007% |
+| Medium | Two-surface fluctuation | 0.043597637 | 0.043554799 | -0.098% |
+| Hard | Mean RMSE (rad) | 0.228911640 | 0.228910620 | -0.0004% |
+| Hard | Two-surface fluctuation | 0.068063825 | 0.068104233 | +0.059% |
+
+All runs completed 25 episodes / 50,000 steps without out-of-bounds retries.
+As a backward-compatibility check, the new launcher's default easy/CPU result
+was byte-identical to the earlier `icinco2024` result. These are seed-1,
+nominal-atmosphere subset comparisons, not a reproduction of the paper's
+multi-seed aggregates or a tolerance claim.
+
+The raw provenance, logs, metrics and comparisons are in the local,
+Git-ignored `../runs/followup-20261103/{easy-regression,medium-cuda,hard-cuda}/`
+directories. Run medium or hard with:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
+    reproducibility/evaluate_ppo_nominal.py --sim-profile icinco2024 \
+    --device cuda --reference-set medium \
+    reproducibility/runs/preserved-medium-cuda
+```
+
 ## PPO entry-point repairs
 
 In `fw_flightcontrol/train/ppo_train.py`:
@@ -188,10 +226,11 @@ gust conditions; no `icinco-repro-*` release tag is justified yet.
 The enclosing `revamp_plan.md` records the exact paired commit hashes.
 Both original `main` branches remain untouched.
 
-Next independent checkpoint: medium/hard PPO evaluation and proper easy/medium
-aggregation, followed by the remaining algorithms and atmosphere cases.
-The normalized PPO/SAC/TD3 repairs, SNCS and dependency modernization remain
-separate work rather than being silently included in this slice.
+Next independent checkpoint: evaluate other archived seeds and nominal
+easy-plus-medium aggregation for PPO, then cover the other algorithm families
+and atmosphere cases. The normalized PPO/SAC/TD3 repairs, SNCS and dependency
+modernization remain separate work rather than being silently included in this
+slice.
 
 ## Reproduce locally
 

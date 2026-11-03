@@ -5,7 +5,12 @@ import tempfile
 import unittest
 
 from evaluate_ppo_nominal import (
-    METRICS, evaluation_log_problems, paper_surface_fluctuation, read_metrics, sha256,
+    METRICS,
+    REFERENCE_SETS,
+    evaluation_log_problems,
+    paper_surface_fluctuation,
+    read_metrics,
+    sha256,
     sim_profile_overrides, simulator_source_files,
 )
 
@@ -102,6 +107,18 @@ class SimulatorProfileTests(unittest.TestCase):
         ):
             with self.subTest(log_text=log_text[-40:]):
                 self.assertTrue(evaluation_log_problems(log_text, "current"))
+
+
+class ReferenceSetTests(unittest.TestCase):
+    def test_reference_set_files_match_historical_names(self) -> None:
+        self.assertEqual(
+            REFERENCE_SETS,
+            {
+                "easy": ("simple_easy", "easyrefs"),
+                "medium": ("simple_medium", "medrefs"),
+                "hard": ("simple_hard", "hardrefs"),
+            },
+        )
 
 
 class SimulatorSourceFileTests(unittest.TestCase):
