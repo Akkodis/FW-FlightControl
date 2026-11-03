@@ -135,6 +135,17 @@ average, are in [`../ppo_diagnosis.csv`](../ppo_diagnosis.csv).
   | Roll target changes only | `[0, 0]` | `[0, -2.5]` |
   | Pitch target changes only | `[0, 0]` | `[1.25, 0]` |
   | Episode reset | `[0, 0]` (±1e-20) | `[0, 0]` (±1e-20) |
+- **Paper alignment:** the restored behaviour (`icinco2024` profile) is the
+  one the ICINCO paper describes: Eq. 14, `Ie = Ie + e·dt` with `dt = 0.01`,
+  "reset at the beginning of each episode or target change". The current
+  default deviates from the paper and from its own docstring ("If the target
+  state changes, reset the integral errors"). Because every call resets the
+  integral, it never builds up and only holds `e·dt` from the latest step.
+  The paper does not say whether a change on one axis also resets the other
+  axis's integral. That makes no difference here: ICINCO targets change only
+  at episode boundaries, where `reset_target_state` zeroes both integrals.
+  `current` stays the default until SNCS-era checkpoints have been checked
+  against it.
 
 ### 2. X8 drag model: confirmed dynamics change
 
