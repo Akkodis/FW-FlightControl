@@ -1,0 +1,108 @@
+diff --git a/fw_jsbgym/envs/jsbsim_env.py b/fw_jsbgym/envs/jsbsim_env.py
+index 45d10c8d79ca87f5e7468a3d9f4fb87c12f31041..6e855b2a9562d62927c82d8a31f7556452e133fd 100644
+--- a/fw_jsbgym/envs/jsbsim_env.py
++++ b/fw_jsbgym/envs/jsbsim_env.py
+@@ -517,11 +517,6 @@ class JSBSimEnv(gym.Env, ABC):
+                 if curr_step == 250: # start the gust @ 250 steps (2.5s @ 100Hz)
+                     self.gust_start()
+ 
+-        # append the fcs commands to the fcs history for this episode
+-        self.fcs_pos_hist.append([self.sim[prp.aileron_combined_pos_rad], 
+-                                  self.sim[prp.elevator_pos_rad],
+-                                  self.sim[prp.throttle_pos]])
+-
+         # apply the action to the simulation
+         self.apply_action(action)
+ 
+@@ -534,6 +529,10 @@ class JSBSimEnv(gym.Env, ABC):
+             self.sim[self.steps_left] -= 1
+             self.sim[self.current_step] += 1
+ 
++        self.fcs_pos_hist.append([self.sim[prp.aileron_combined_pos_rad],
++                                 self.sim[prp.elevator_pos_rad],
++                                 self.sim[prp.throttle_pos]])
++
+         # conversions here
+         conversions.props2si(self.sim)
+         conversions.euler2quaternion(sim=self.sim)
+diff --git a/fw_jsbgym/envs/tasks/attitude_control/ac_bohn_nova.py b/fw_jsbgym/envs/tasks/attitude_control/ac_bohn_nova.py
+index 0ffd90ca561cc43a1fb303ea95832b4d15a69096..949f2436c4495007e04486a5a875502bcae9a039 100644
+--- a/fw_jsbgym/envs/tasks/attitude_control/ac_bohn_nova.py
++++ b/fw_jsbgym/envs/tasks/attitude_control/ac_bohn_nova.py
+@@ -271,11 +271,14 @@ class ACBohnNoVaIErrTask(ACBohnNoVaTask):
+             If the target state changes, reset the integral errors.
+             Args: target_state: np.ndarray of target state variables [roll, pitch]. Units: [rad, rad]
+         """
++        previous_roll = self.prev_target_roll
++        previous_pitch = self.prev_target_pitch
+         super().set_target_state(target_state)
+ 
+-        # reset integral errors
+-        self.sim[prp.roll_integ_err] = 0.0
+-        self.sim[prp.pitch_integ_err] = 0.0
++        if target_state[0] != previous_roll:
++            self.sim[prp.roll_integ_err] = 0.0
++        if target_state[1] != previous_pitch:
++            self.sim[prp.pitch_integ_err] = 0.0
+ 
+ 
+     def update_errors(self, first_err=False) -> None:
+@@ -335,4 +338,3 @@ class ACBohnNoVaIErrWindOracleTask(ACBohnNoVaIErrTask):
+             self.print_MDP_info()
+ 
+         self.telemetry_setup(self.telemetry_file)
+-
+diff --git a/fw_jsbgym/fdm_descriptions/aircraft/x8/x8.xml b/fw_jsbgym/fdm_descriptions/aircraft/x8/x8.xml
+index 57f76bfa47f897f10e071bf2e6106b3e40e6c795..ae7254a4e809b7f3ff45a7abb72e15e853953808 100644
+--- a/fw_jsbgym/fdm_descriptions/aircraft/x8/x8.xml
++++ b/fw_jsbgym/fdm_descriptions/aircraft/x8/x8.xml
+@@ -425,10 +425,9 @@
+                 <product>
+                     <property>aero/qbar-area</property>
+                     <!-- <property>aero/alpha-rad</property> -->
+-                    <!-- <property>aero/stab-coef/CDalpha</property> -->
+                     <table>
+                         <independentVar lookup="row">aero/alpha-rad</independentVar>
+-                        <!-- <tableData>
++                        <tableData>
+                             -1.5702    2.1255
+                             -1.4497    1.8147
+                             -1.2088    1.2558
+@@ -443,18 +442,6 @@
+                              1.1952    1.3060
+                              1.3681    1.7173
+                              1.5723    2.2448
+-                        </tableData> -->
+-                        <tableData>
+-                            -0.5235    0.24157882  
+-                            -0.4071    0.15065182
+-                            -0.2908    0.08356223
+-                            -0.1745    0.04030362
+-                            -0.0581    0.02088696
+-                            0.0581     0.0253051
+-                            0.1745     0.05356137
+-                            0.2908     0.10565625
+-                            0.4071     0.18158545
+-                            0.5235     0.28134915
+                         </tableData>
+                     </table>
+                 </product>
+diff --git a/fw_jsbgym/initial_conditions/x8_basic_ic.xml b/fw_jsbgym/initial_conditions/x8_basic_ic.xml
+index ed18729c50676eddcd094693a7aaab9ab87e3b7d..33b9b3a56176beaee99d2006913a228def84e0d3 100644
+--- a/fw_jsbgym/initial_conditions/x8_basic_ic.xml
++++ b/fw_jsbgym/initial_conditions/x8_basic_ic.xml
+@@ -3,11 +3,11 @@
+   <!--
+     Basic set of initial conditions at 1000 ft with engines running.
+   -->
+-  <ubody unit="M/SEC">    16.67  </ubody> <!-- 16.67m/s = 60km/h -->
++  <ubody unit="M/SEC">    16.97  </ubody>
+   <vbody unit="M/SEC">    0.0  </vbody>
+   <wbody unit="M/SEC">    0.0  </wbody>
+-  <latitude unit="DEG">  47.635784 </latitude> <!-- Somewhere in France -->
+-  <longitude unit="DEG">   2.460938  </longitude>
++  <longitude unit="DEG">   0.0  </longitude> <!-- UoBath campus -->
++  <latitude unit="DEG">   0.0  </latitude>
+   <phi unit="DEG">          0.0  </phi>  <!-- roll -->
+   <theta unit="DEG">    0.0  </theta>  <!-- pitch -->
+   <psi unit="DEG">          0.0  </psi>  <!-- yaw -->
