@@ -144,8 +144,18 @@ average, are in [`../ppo_diagnosis.csv`](../ppo_diagnosis.csv).
   The paper does not say whether a change on one axis also resets the other
   axis's integral. That makes no difference here: ICINCO targets change only
   at episode boundaries, where `reset_target_state` zeroes both integrals.
-  `current` stays the default until SNCS-era checkpoints have been checked
-  against it.
+  `current` is still the default, but this regression does not affect SNCS
+  (checked 2026-11-03, see "SNCS exposure" below), so making the paper rule
+  the default awaits only the author's decision.
+- **SNCS exposure:** none for the published metrics.
+  - The SNCS waypoint MDPs (`CourseAltTracking`, `CourseAltNoVaTracking`) have no
+    integral-error observations and do not inherit from `ACBohnNoVaIErrTask`.
+    All three saved SNCS variants (SS-Vanilla, SS-ActPos, PI-Throttle) take a
+    19-dimensional input, which matches that integral-free state.
+  - The airspeed PI controller and the waypoint PID baseline keep their own
+    integrator state, independent of this code.
+  - Every SNCS attitude-control table and figure is marked "reproduced from"
+    ICINCO, so those results belong to the `icinco2024` semantics.
 
 ### 2. X8 drag model: confirmed dynamics change
 
@@ -195,8 +205,10 @@ average, are in [`../ppo_diagnosis.csv`](../ppo_diagnosis.csv).
 - **Coverage:** only one seed, one algorithm, one reference subset, and the
   nominal atmosphere were evaluated. SAC, TD-MPC2, PID, medium/hard references,
   atmosphere conditions, other seeds, and fresh training remain unchecked.
-- **SNCS:** the SNCS checkpoints may have been trained with the post-2024
-  semantics. These restorations must not be applied globally.
+- **SNCS:** the integral-reset regression does not affect SNCS (Finding 1).
+  The drag table and surface-history changes still need checking against the
+  SNCS waypoint checkpoints. Apply restorations only through explicit profiles,
+  not globally.
 
 ## Related lead found while journaling (not yet evaluated)
 
