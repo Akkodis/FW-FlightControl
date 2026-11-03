@@ -171,6 +171,15 @@ Additional verification:
 
 ## Branch/release boundary
 
+Exact validated source pair (later report-only commits do not change these sources):
+
+- FW-JSBGym: `052d8b434dac1a2ebee67c5b2216c341086a3a8d`
+- FW-FlightControl: `d8db31374e060ed8c76676679b7619d5894299cf`
+
+The full run began before the FlightControl commit was made; its provenance
+therefore records `e0d3474` plus the diff and source hashes. All 265 recorded
+input hashes were checked against the committed sources above.
+
 The paired `paper/icinco` branches are maintained **reproduction candidates**
 for this validated PPO/easy/no-wind slice. They can receive future refactors
 only after rerunning the preserved-checkpoint and fresh-training checks.
