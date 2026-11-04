@@ -1,105 +1,26 @@
-# ICINCO PPO seed 1: why current code no longer reproduces the archived scores
+# ICINCO PPO drift: causes and controlled experiments
 
-| | |
-|---|---|
-| Experiments run | 2026-10-30 |
-| Journaled | 2026-11-03 |
-| Branches | `revamp/reproducibility-first` in both repositories |
-| Source commits | FW-FlightControl `81661f6`; FW-JSBGym `571a52f` (= original `main`) |
-| Runtime | `fw-310`: Python 3.10.13, PyTorch 2.6.0.dev20241112, NumPy 1.24.4, Gymnasium 0.29.1, JSBSim 1.2.3 (build 1561), Hydra 1.3.2 |
-| Scope | One preserved checkpoint, one reference subset, nominal atmosphere |
-| Status | Large discrepancies explained; small fluctuation residual still open |
+[Investigation overview](./README.md) | [Common protocol](../README.md#common-preserved-checkpoint-protocol)
 
-## Summary
+**Conclusion:** three post-paper simulator changes explain the large drift:
+integral resets, X8 drag, and the fluctuation metric. Initial conditions and
+surface-sampling timing refine the match.
 
-Evaluating the preserved ICINCO PPO seed-1 checkpoint with the current code gave
-a mean roll/pitch RMSE **87% higher** than the archived result and a surface
-fluctuation that was **more than ten times lower**. Neither the weights nor the
-Python version caused it. Controlled experiments identified three post-ICINCO
-changes in FW-JSBGym:
+This report records the **October 30 CPU diagnosis**, with November 3
+clarifications. Its +3.726% fluctuation residual is not the final CUDA result;
+the later [nominal seed-1 CUDA residuals were accepted](./2026-11-03_icinco_submission_pair_evaluation.md#author-acceptance-2026-11-03).
+That does not accept the larger CPU difference.
 
-1. **Integral-error observations were broken for this evaluator** (Dec 2024).
-   They are now reset on *every* `set_target_state` call, which the evaluator
-   makes at every step. The policy therefore no longer sees accumulated
-   integral errors. This alone explains the tracking-error regression.
-2. **The X8 drag model changed** (Jun 2025). Once the integral observations are
-   restored, the earlier drag table is needed to recover the archived actuator
-   fluctuation.
-3. **The exported fluctuation metric changed meaning** (Feb 2025). Throttle was
-   added to the surface history, so the legacy evaluator's `avg_fcs_fluct` became
-   an average of aileron, elevator, *and throttle*. The paper metric averages
-   only aileron and elevator.
+## Controlled results
 
-With historical behaviour restored for these three factors, plus the historical
-initial conditions and surface-sampling instant, the evaluation gives:
+One preserved PPO seed-1 policy, easy references, nominal atmosphere:
+25 episodes / 50,000 steps in `fw-310`, CPU, one OpenMP/MKL thread.
+Evaluation sources: FlightControl `81661f6`, JSBGym `571a52f`.
+Each restoration used a separate detached simulator worktree; policy,
+references, RNG seeds, runtime and evaluator were held fixed. No archived
+inputs changed (204/204 hashes matched).
 
-| Metric | Archived | Restored | Difference |
-|---|---:|---:|---:|
-| Mean roll/pitch RMSE | 0.029099766 | 0.029106578 | **+0.023%** |
-| Paper surface fluctuation | 0.006079950 | 0.006306472 | **+3.726%** |
-
-The restored run was repeated with byte-identical results. The remaining
-fluctuation difference is **not explained yet** and has not been accepted as a
-tolerance.
-
-## Evaluated protocol
-
-- Checkpoint
-  `fw_flightcontrol/models/icinco/ppo/noactreg/ppo_bohnmlp_noactreg_nohist_noatmo_1_22-05_18:46:52.pt`
-  (training seed 1; strict, weights-only load).
-- Reference archive
-  `fw_flightcontrol/eval/attitude_control/outputs/icinco/ppo/noactreg_noatmo/ppo_bohnmlp_noactreg_nohist_noatmo_easyrefs_1.csv`.
-  A similarly named CSV outside `outputs/icinco/` has different numbers and is
-  not the ICINCO result.
-- Unmodified legacy evaluator `eval/attitude_control/ppo_eval_simple.py`:
-  evaluator seed 10, deterministic actor mean, CPU, one OpenMP/MKL thread.
-- Task `ACBohnNoVaIErr-v0`, X8, 100 Hz agent and FDM, 20 s episodes.
-- All 25 targets of `targets/simple_easy.npy`; simulator seeds from
-  `targets/jsbsim_seeds.npy` (26 values; the last one is used by the final reset).
-- No wind, turbulence, gusts, or FDM randomization. The legacy evaluator needs
-  `env.jsbsim.eval_sim_options.atmosphere.severity=off` as a scalar.
-- 25 episodes, 2,000 steps each, 50,000 observations; no out-of-bounds retries
-  occurred in any run.
-
-### Metric definitions used
-
-- **RMSE**: separate roll and pitch RMSE over all 50,000 raw error observations
-  (observation columns 6 and 7), then the arithmetic mean of the two.
-- **Paper surface fluctuation**: for each episode, the mean absolute difference
-  between consecutive *actual* aileron and elevator positions (radians, 1,999
-  differences per episode); averaged over episodes, then over the two surfaces.
-  It is not command fluctuation or angular velocity.
-
-The easy subset is only part of the paper's nominal reference set. Archived
-easy and medium CSVs combined over the five seeds reproduce ICINCO Table 6
-(PPO nominal `5.29 ± 0.12`, hard `15.78 ± 2.48`, ×1e-2) and Table 7's nominal
-fluctuation mean `1.98` ×1e-2. This links the archived CSVs to the paper.
-
-## Symptom
-
-| Metric | Archived | Current code | Change |
-|---|---:|---:|---:|
-| Roll RMSE (rad) | 0.034604420 | 0.049398348 | +42.75% |
-| Pitch RMSE (rad) | 0.023595111 | 0.059699472 | +153.02% |
-| Mean RMSE (rad) | 0.029099766 | 0.054548910 | +87.45% |
-| Aileron fluctuation (rad/step) | 0.009466400 | 0.000496550 | -94.75% |
-| Elevator fluctuation (rad/step) | 0.002693501 | 0.000306005 | -88.64% |
-| Paper surface fluctuation | 0.006079950 | 0.000401277 | -93.40% |
-| Exported `avg_fcs_fluct` | 0.006079950 | 0.000334999 | not comparable |
-
-Two independent runs of the current code produced byte-identical metric CSVs,
-so the difference is deterministic and not evaluation noise.
-
-## Method
-
-Everything was held fixed except the simulator factor under test: the
-interpreter and packages, device and threads, checkpoint, policy code,
-evaluator, targets, and seeds. Each factor was restored in a separate detached
-FW-JSBGym worktree under the Git-ignored `reproducibility/runs/` directory.
-The working repositories, checkpoints, references, and configurations were not
-modified; all 204 hashes in `historical_inputs.sha256` still match.
-
-| Simulator variant | Mean RMSE | Paper surface fluctuation |
+| Simulator variant | Mean RMSE (rad) | Paper surface fluctuation (rad/sample) |
 |---|---:|---:|
 | Archived seed-1 result | 0.029099766 | 0.006079950 |
 | Current code | 0.054548910 | 0.000401277 |
@@ -109,177 +30,98 @@ modified; all 204 hashes in `historical_inputs.sha256` still match.
 | ... + historical initial conditions | 0.029106578 | 0.006299480 |
 | ... + historical post-step surface sampling | 0.029106578 | 0.006306472 |
 
-Full-precision values, including per-axis numbers and the legacy exported
-average, are in [`../ppo_diagnosis.csv`](../ppo_diagnosis.csv).
+The unchanged baseline and fully restored case each repeated exactly.
+Baseline mean RMSE is **+87.45%** versus archive. Its apparently low fluctuation
+is not evidence of improvement: tracking worsened, and the legacy export also
+changed meaning. Full-precision per-axis and legacy-average values remain in
+[`ppo_diagnosis.csv`](../ppo_diagnosis.csv).
 
-## Findings
+## Why it drifted
 
-### 1. Integral-error observations: confirmed regression
+| Change in FW-JSBGym | Effect established by the experiments |
+|---|---|
+| `95d4b531` (2024-12-06): unconditional integral resets | Repeated same-target setter calls erase accumulation. Restoring conditional resets alone recovers most tracking accuracy. |
+| `97e356e07` (2025-06-30): X8 angle-of-attack drag table | With integrals restored, historical drag raises fluctuation from 0.002586 to 0.006262, near archive. The newer model is not thereby proved wrong. |
+| `98580b4` (2025-02-13): throttle added to surface history | `avg_fcs_fluct` becomes a three-channel mean mixing radians and normalized throttle. The fully restored diagnostic export is 0.004255815, but the paper's two-surface value is 0.006306472. |
+| Initial conditions differ from `1072782` | Historical 16.97 m/s and lat/lon 0 replace 16.67 m/s and France; RMSE gap falls from +0.131% to +0.023%. Speed/location effects were not separated. |
+| Surface sampling differs from `1072782` | Sampling after the FDM step rather than before the action leaves RMSE unchanged and moves fluctuation slightly away from archive. |
 
-- **Change:** FW-JSBGym `95d4b531` (2024-12-06),
-  `ACBohnNoVaIErrTask.set_target_state` in
-  `fw_jsbgym/envs/tasks/attitude_control/ac_bohn_nova.py`.
-- **Before:** each integral error was reset only when its own target changed.
-- **After:** both integral errors are reset on every call.
-- **Why it matters:** the attitude evaluators call `set_target_state` every
-  step, even for a constant target. Observations 13 and 14 then contain one
-  step's error contribution instead of the accumulated history that the policy
-  was trained with.
-- **Evidence:** restoring only the conditional reset brings mean RMSE from
-  0.05455 back to 0.02880. A probe in the real environment injected integral
-  values `[1.25, -2.5]`:
+These are historical compatibility requirements, not reasons to globally
+revert newer dynamics. The production solution is the explicit
+[`icinco2024` profile](./2026-11-03_icinco2024_sim_profile.md).
 
-  | Operation | Current | Restored |
-  |---|---|---|
-  | Same target again | `[0, 0]` | `[1.25, -2.5]` |
-  | Roll target changes only | `[0, 0]` | `[0, -2.5]` |
-  | Pitch target changes only | `[0, 0]` | `[1.25, 0]` |
-  | Episode reset | `[0, 0]` (±1e-20) | `[0, 0]` (±1e-20) |
-- **Paper alignment:** the restored behaviour (`icinco2024` profile) is the
-  one the ICINCO paper describes: Eq. 14, `Ie = Ie + e·dt` with `dt = 0.01`,
-  "reset at the beginning of each episode or target change". The current
-  default deviates from the paper and from its own docstring ("If the target
-  state changes, reset the integral errors"). Because every call resets the
-  integral, it never builds up and only holds `e·dt` from the latest step.
-  The paper does not say whether a change on one axis also resets the other
-  axis's integral. That makes no difference here: ICINCO targets change only
-  at episode boundaries, where `reset_target_state` zeroes both integrals.
-  This clarification leaves simulator defaults unchanged. The waypoint check
-  below establishes independence from this reset flag, not compatibility of
-  every other task or checkpoint with a default-behaviour change.
-- **SNCS exposure:** waypoint tracking is unaffected by this specific reset
-  regression; the same conclusion does not apply to attitude control.
-  - The SNCS waypoint MDPs (`CourseAltTracking`, `CourseAltNoVaTracking`) have no
-    integral-error observations and do not inherit from `ACBohnNoVaIErrTask`.
-    The state definitions for SS-Vanilla, SS-ActPos and PI-Throttle each have
-    19 values, including neither roll nor pitch integral error.
-  - The airspeed PI controller and the waypoint PID baseline keep their own
-    integrator state, independent of this code.
-  - SNCS still includes roll and pitch integral errors in its attitude-control
-    MDP (Eq. 16). Its reused ICINCO attitude results, including Tables 9 and 10
-    marked "reproduced from [11]", require historical integral semantics when
-    re-evaluated. They are not evidence that the regression is harmless for
-    attitude control.
-  - **Runtime check (2026-11-03, `fw-310`):** for each of the three waypoint
-    variants, compared the `current` profile against a copy with only
-    `reset_integral_errors_every_target_call` changed from `True` to `False`.
-    Used seed 1, no atmosphere, fixed actions, and two 10-step episodes at
-    100 Hz, with a waypoint change halfway through each episode. Normalized
-    and raw observations, rewards, termination/truncation/success flags, ENU
-    positions and actual actuator positions were exactly equal at every step.
-    The PI-throttle variant computed its own throttle throughout the check.
-    This is an isolated reset-flag check, not a full SNCS policy evaluation or
-    a comparison between the complete `current` and `icinco2024` profiles:
-    other profile differences, such as aircraft dynamics, can still matter.
+## Integral errors and SNCS
 
-### 2. X8 drag model: confirmed dynamics change
+**The restored behaviour, not the faulty default, matches ICINCO Eq. 14:**
+`I_next = I + error * 0.01`, reset at episode start or target change.
 
-- **Change:** FW-JSBGym `97e356e07` (2025-06-30) replaced the angle-of-attack
-  drag table in `fw_jsbgym/fdm_descriptions/aircraft/x8/x8.xml`.
-- **Evidence:** with integral semantics restored, the earlier table raises
-  surface fluctuation from 0.002586 to 0.006262, close to the archived
-  0.006080. On its own it barely affects RMSE.
-- **Interpretation:** ICINCO used the earlier model. This does not show that the
-  newer model is wrong; historical experiments should select the earlier model
-  explicitly instead of reverting later flight-model work.
+The attitude evaluator/trainer calls `set_target_state` each control step,
+usually with the **same target**. A setter call is not a target change.
+In `current`, the final two observations (indices 12/13) therefore hold only
+one step's contribution. In `icinco2024`, errors accumulate throughout the
+episode until a real change/reset.
 
-### 3. Exported fluctuation: confirmed metric-definition drift
+A real-environment probe injected integrals `[1.25, -2.5]`:
 
-- **Change:** FW-JSBGym `98580b4` (2025-02-13) appended throttle position to
-  `fcs_pos_hist` in `fw_jsbgym/envs/jsbsim_env.py`.
-- **Effect:** the attitude evaluators still compute `np.mean(fcs_fluct)` over all
-  channels, so their `avg_fcs_fluct` silently became a three-channel average
-  mixing radians and normalized throttle.
-- **Evidence:** for the fully restored run, the legacy export reports
-  0.004255815, while `(aileron + elevator) / 2` gives 0.006306472.
-- **Consequence:** compare only the two-surface quantity with the paper. The
-  launcher reports both values separately without rewriting legacy outputs.
+| Operation | `current` | Historical / `icinco2024` |
+|---|---|---|
+| Same target again | `[0, 0]` | `[1.25, -2.5]` |
+| Change roll target only | `[0, 0]` | `[0, -2.5]` |
+| Change pitch target only | `[0, 0]` | `[1.25, 0]` |
+| Reset episode | `[0, 0]` within `1e-20` | `[0, 0]` within `1e-20` |
 
-### 4. Smaller protocol differences
+The paper does not specify whether a one-axis change resets both integrals.
+Historical code resets only the changed axis; this distinction is immaterial
+here because ICINCO targets change at episode boundaries, where both reset.
+Simulator defaults were not changed globally.
 
-- **Initial conditions:** the X8 initial-condition file at FW-JSBGym `1072782`
-  (2024-10-04) uses 16.97 m/s and latitude/longitude 0; the current file uses
-  16.67 m/s and a location in France. Restoring the file reduces the RMSE gap
-  from +0.131% to +0.023%. The speed and location effects were not separated.
-- **Surface-sampling instant:** at `1072782` the task recorded surface positions
-  after advancing the FDM; current code records them before applying the
-  action. Restoring this leaves RMSE unchanged and moves fluctuation from
-  0.006299480 to 0.006306472, i.e. slightly away from the archive.
+| SNCS check | Finding |
+|---|---|
+| Waypoint MDPs | `CourseAltTracking` / `CourseAltNoVaTracking` do not inherit the affected attitude-integral class. SS-Vanilla, SS-ActPos and PI-Throttle each have 19 state values without roll/pitch integral errors. |
+| Isolated runtime probe | Each variant: seed 1, fixed actions, no atmosphere, two ten-step episodes at 100 Hz, waypoint change halfway. Toggle only `reset_integral_errors_every_target_call`; observations (raw/normalized), rewards, flags, ENU and actuator positions remain exactly equal. |
+| Separate integrators | Airspeed PI and waypoint PID controllers have their own state; PI-Throttle computed its own throttle during the probe. |
+| Reused attitude results | SNCS Eq. 16 still has attitude integral errors. Tables 9/10, reproduced from ICINCO, require historical semantics when re-evaluated. |
 
-## Open questions
+This proves independence from **one reset flag**, not equivalence of the full
+profiles or reproduction of SNCS policies/dynamics.
 
-- **Surface fluctuation is device-sensitive; its historical cause is not
-  fully established.** Repeating the preserved-checkpoint evaluation on CPU
-  gives +3.726% versus the archive; CUDA gives -0.155%. These results match
-  across `fw-310` and `fw-tdmpc2-39`, so the Python/JSBSim difference does not
-  explain the residual. See the [CPU/CUDA comparison](./2026-11-03_icinco_ppo_training.md).
-  Device sensitivity explains the large CPU discrepancy, but the archive's
-  evaluation device and the remaining CUDA difference's exact cause are
-  unknown. No correction or acceptance tolerance has been applied.
-- **Exact paper-era commits** are still unknown. Local Hydra snapshots support
-  the selected configuration, but FW-FlightControl `f71acbe` hard-codes
-  55°/28° targets, so a saved config alone does not prove the historical
-  protocol.
-- **Coverage:** preserved seed-1 PPO has now been checked on easy, medium and
-  hard references in nominal atmosphere. Other seeds, SAC, TD-MPC2, PID, and
-  turbulence/gust conditions remain unchecked. Fresh seed-1 PPO training is
-  documented separately; it has not yet been repeated for other algorithms.
-- **SNCS:** the integral-reset regression does not affect SNCS (Finding 1).
-  The drag table and surface-history changes still need checking against the
-  SNCS waypoint checkpoints. Apply restorations only through explicit profiles,
-  not globally.
+## Author-supplied submission candidates (2026-11-03)
 
-## Related lead found while journaling (not yet evaluated)
-
-The ICINCO paper (Section 6.2.2) states that gusts are triggered at timesteps
-**500 and 1500**. The simulator at `1072782` did this, while current
-`JSBSimEnv.step` triggers a single gust at step **250**. This does not affect the
-nominal-atmosphere results above, but gust-condition reproductions must account
-for it.
+The later [source audit and historical execution](./2026-11-03_icinco_submission_pair_evaluation.md#source-audit)
+use JSBGym `733a2a8` and FlightControl `8576761` from June 12, 2024.
+They confirm the restored semantics and reproduce the profile's CUDA metric
+CSVs exactly. Full commit IDs, artifact counts and the acceptance decision live
+in that report rather than being duplicated here.
 
 ## Evidence and reproduction
 
-Tracked:
+| Evidence | Location |
+|---|---|
+| All diagnostic values | [`ppo_diagnosis.csv`](../ppo_diagnosis.csv), tracked |
+| Isolated restoration patch | [`icinco_ppo_diagnostic.patch`](../icinco_ppo_diagnostic.patch), tracked experiment artifact, not a production fix |
+| Original/repeat evaluation | [`icinco-ppo-seed1-easy-fw310-20261030`](../runs/icinco-ppo-seed1-easy-fw310-20261030/), local/ignored |
+| Per-variant runs and integral probe | [`ppo-diagnosis-20261030`](../runs/ppo-diagnosis-20261030/), local/ignored |
 
-- [`../ppo_diagnosis.csv`](../ppo_diagnosis.csv): one row per variant.
-- [`../icinco_ppo_diagnostic.patch`](../icinco_ppo_diagnostic.patch): the four
-  isolated restorations used for the final row. It is an experiment artifact,
-  not a production fix, and applies to FW-JSBGym `571a52f`.
-- [`../evaluate_ppo_nominal.py`](../evaluate_ppo_nominal.py): isolated evaluation
-  launcher with provenance and comparison output.
-
-Local, Git-ignored:
-
-- `../runs/icinco-ppo-seed1-easy-fw310-20261030/`: current-code runs.
-- `../runs/ppo-diagnosis-20261030/`: detached worktrees, per-variant results,
-  repeats, and integral-probe JSON files.
-
-To repeat the final diagnostic row from the FW-FlightControl root:
+The patch applies to JSBGym `571a52f`. To rerun that restoration on the required
+**CUDA** device, from FlightControl with new directory names:
 
 ```bash
 git -C ../FW-JSBGym worktree add --detach \
-    "$PWD/reproducibility/runs/ppo-historical-sim" \
+    "$PWD/reproducibility/runs/diagnostic-source-new" \
     571a52fe02ec3f7fc78968a076fa68a536be1455
-git -C reproducibility/runs/ppo-historical-sim apply \
+git -C reproducibility/runs/diagnostic-source-new apply \
     "$PWD/reproducibility/icinco_ppo_diagnostic.patch"
-PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
-    reproducibility/evaluate_ppo_nominal.py \
-    reproducibility/runs/ppo-historical-evaluation \
-    --simulator-root reproducibility/runs/ppo-historical-sim
+CUDA_VISIBLE_DEVICES=0 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
+    reproducibility/evaluate_ppo_nominal.py --device cuda \
+    --simulator-root reproducibility/runs/diagnostic-source-new \
+    reproducibility/runs/diagnostic-cuda-new
 ```
 
-Use `git apply --include=<path>` to restore one factor at a time.
+Use `git apply --include=<path>` for an individual restoration. This command
+replays the simulator patch on CUDA; it is **not** expected to reproduce the
+CPU table bit-for-bit. Routine evaluations should instead use the profile and
+[current run guide](../README.md).
 
-## Follow-up decisions
-
-The first two decisions were implemented on 2026-11-03; see
-[2026-11-03: ICINCO 2024 simulator profile](./2026-11-03_icinco2024_sim_profile.md).
-
-- Represent the restored behaviour as an explicit, opt-in ICINCO compatibility
-  profile; keep current behaviour as the default.
-- Report the paper's two-surface fluctuation explicitly in reproduction tools.
-- Measure device sensitivity before setting tolerances: the CPU/CUDA comparison
-  is complete; the remaining -0.155% CUDA fluctuation difference is unresolved.
-- Extend preserved-checkpoint checks to medium and hard references (complete
-  for seed-1 PPO, nominal atmosphere). Turbulence/gust conditions, other seeds
-  and algorithms remain; fresh seed-1 training is complete for PPO only.
+Gusts at steps 500/1500 (paper Section 6.2.2 and `1072782`) versus the later
+single gust at 250 were another source finding. They do not affect these
+nominal runs; the profile restores the timing, but gust-score validation remains.

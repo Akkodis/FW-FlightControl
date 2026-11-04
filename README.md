@@ -2,6 +2,13 @@
 
 Control algorithms, training and testing scripts for a x8 Fixed Wing UAV. Uses a JSBSim simulator based RL compatible framework: [FW-JSBSim](https://github.com/Akkodis/FW-JSBGym).
 
+## Paper reproducibility
+
+Start with the [investigation summary and experiment ledger](./reproducibility/reports/README.md),
+then the [reproduction commands](./reproducibility/README.md).
+These document the validated ICINCO PPO slice and remaining work; they do not
+certify reproduction of either complete paper.
+
 ## Installation
 Requires Python 3.9
 
