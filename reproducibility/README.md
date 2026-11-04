@@ -51,6 +51,16 @@ For direct Hydra entry points, the profile selector is
 `+env.jsbsim.sim_profile=icinco2024`. The `+` avoids changing protected YAML.
 This is not a claim that every legacy trainer works.
 
+### TD-MPC2 implementation decision
+
+Retain the current TD-MPC2 implementation for both training and evaluation,
+with `icinco2024` for ICINCO simulator behaviour. Do not apply the historical
+dropout/policy/sampling overrides or add a legacy inference mode. The author
+accepts the explained improvement in ActFluct; the
+[decision and ablation report](./reports/2026-11-04_icinco_tdmpc2_inference_ablation.md#author-decision-retain-current-td-mpc2-2026-11-04)
+preserves the evidence and limited validation scope. The historical replay
+command there is diagnostic only; fresh TD-MPC2 training remains to be validated.
+
 ## Common preserved-checkpoint protocol
 
 | Item | Value |
