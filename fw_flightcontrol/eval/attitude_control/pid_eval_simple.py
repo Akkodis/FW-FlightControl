@@ -22,7 +22,7 @@ def rearrange_obs(obs: np.ndarray) -> tuple[float, float, float, float, float]:
     return Va, roll, pitch, roll_rate, pitch_rate
 
 
-@hydra.main(version_base=None, config_path="../config", config_name="default")
+@hydra.main(version_base=None, config_path="../../config", config_name="default")
 def eval(cfg: DictConfig):
     np.set_printoptions(precision=3)
 
@@ -40,6 +40,7 @@ def eval(cfg: DictConfig):
     env = gym.make(cfg.PID.env_id, cfg_env=cfg.env, render_mode=cfg_sim.render_mode,
                     telemetry_file='telemetry/telemetry.csv')
     env = gym.wrappers.RecordEpisodeStatistics(env)
+    env.init()
 
     assert cfg_task.mdp.obs_is_matrix == False, "Only single observation history is supported, observation has to be 1D vector"
 
@@ -77,10 +78,10 @@ def eval(cfg: DictConfig):
                     )
 
     # load reference sequence and initialize evaluation arrays
-    simple_ref_data = np.load(f'eval/refs/{cfg.ref_file}.npy')
+    simple_ref_data = np.load(f'eval/attitude_control/targets/{cfg.ref_file}.npy')
 
     # load the jsbsim seeds to apply at each reset and set the first seed
-    jsbsim_seeds = np.load(f'eval/refs/jsbsim_seeds.npy')
+    jsbsim_seeds = np.load(f'eval/attitude_control/targets/jsbsim_seeds.npy')
     cfg_sim.eval_sim_options.seed = float(jsbsim_seeds[0])
 
     # set default target values
@@ -135,7 +136,7 @@ def eval(cfg: DictConfig):
             # apply target values
             roll_pid.set_reference(roll_ref)
             pitch_pid.set_reference(pitch_ref)
-            env.set_target_state(roll_ref, pitch_ref)
+            env.set_target_state(np.array([roll_ref, pitch_ref]))
 
             aileron_cmd, roll_err, _ = roll_pid.update(state=roll, state_dot=roll_rate, saturate=True, normalize=True)
             elevator_cmd, pitch_err, _ = pitch_pid.update(state=pitch, state_dot=pitch_rate, saturate=True, normalize=True)
