@@ -1,112 +1,93 @@
-# TD-MPC2 fluctuation drift: historical critic dropout
+# TD-MPC2: why current inference fluctuates less
 
-[Investigation overview](./README.md) | [Baseline comparison and SAC acceptance](./2026-11-04_icinco_sac_tdmpc2_evaluation.md)
+[Run guide and status](../README.md)
 
-**Conclusion:** the current-vs-June-12 discrepancy is explained for this slice.
-The dominant change is **critic dropout remaining active during historical
-evaluation**, whereas the newer ensemble correctly disables it. Restoring that
-behaviour together with historical policy means and sampling choices makes
-current code + `icinco2024` produce a **byte-identical six-metric CSV** to the
-June 12 source run. No further simulator change was needed.
-
-**Author decision (2026-11-04): retain current TD-MPC2 for training and
-evaluation, not the diagnostic legacy restoration.** The improved ActFluct is
-an accepted behaviour difference. See the [decision and scope](#author-decision-retain-current-td-mpc2-2026-11-04).
+- On preserved seed 1 (easy references), current TD-MPC2 + `icinco2024` has
+  21.7% lower ActFluct and 0.83% higher RMSE than the archive. The June 12,
+  2024 source differs from the archive by only +2.51% ActFluct and +0.24% RMSE.
+- **Cause:** in the June 12 code, critic dropout stayed active during
+  evaluation because `model.eval()` did not reach it. Current code disables it
+  correctly. Restoring it, plus three historical sampling choices, reproduces
+  the June 12 metric CSV byte-for-byte; no simulator change was needed.
+- **Decision (Nov 4):** [keep current TD-MPC2](#author-decision-retain-current-td-mpc2-2026-11-04)
+  for training and evaluation.
+- Only seed 1 easy was ablated. The other seeds show
+  [seed-dependent ActFluct changes](./2026-11-05_icinco_phase1_nominal_five_seeds.md#per-seed-residuals).
 
 ## Controlled results
 
-All six new evaluations use the unchanged current evaluator, preserved
-checkpoint seed 1, evaluation seed 10, nominal easy references, model size 5,
-and `icinco2024`. Each completes 25 episodes / 50,000 steps on RTX A6000 CUDA.
-Only the indicated inference choices are overridden in the diagnostic process.
+Preserved seed 1, evaluation seed 10, easy references, model size 5,
+`icinco2024`, RTX A6000 CUDA, 25 episodes / 50,000 steps. Only the listed
+inference choices change.
 
-| Inference behaviour | Mean RMSE (rad) | Two-surface fluctuation (rad/sample) | Fluctuation vs June 12 |
+| Inference | Mean RMSE (rad) | ActFluct (rad/sample) | ActFluct vs June 12 |
 |---|---:|---:|---:|
-| June 12 source reference | 0.020021943 | 0.034499985838 | 0.000000% |
-| Current, repeated unchanged | 0.020141710 | 0.026346972962 | -23.631931% |
-| Historical policy means only | 0.020085873 | 0.025036572865 | -27.430194% |
-| Historical NumPy sampling only | 0.020067457 | 0.026250559406 | -23.911391% |
-| Policy means + NumPy sampling | 0.019924864 | 0.023293170615 | -32.483536% |
-| Historical critic dropout only | 0.020132553 | 0.034735611362 | +0.682973% |
-| All four historical choices | 0.020021943 | 0.034499985838 | 0.000000% |
+| Archive | 0.019974964 | 0.033656020 | -2.45% |
+| June 12 source | 0.020021943 | 0.034499986 | reference |
+| Current | 0.020141710 | 0.026346973 | -23.63% |
+| Historical policy means only | 0.020085873 | 0.025036573 | -27.43% |
+| Historical NumPy sampling only | 0.020067457 | 0.026250559 | -23.91% |
+| Policy means + NumPy sampling | 0.019924864 | 0.023293171 | -32.48% |
+| Historical critic dropout only | 0.020132553 | 0.034735611 | +0.68% |
+| All four historical choices | 0.020021943 | 0.034499986 | 0.00% (byte-identical CSV) |
 
-[Exact per-axis and averaged metrics](../tdmpc2_inference_ablation.csv) retain
-the full exported precision. The unchanged control on GPU 1 reproduces the
-previous current-profile GPU 0 CSV byte-for-byte. The complete historical
-restoration on GPU 0 reproduces the June 12 GPU 0 CSV byte-for-byte.
-
-The original policy/sampler hypotheses were insufficient: restoring both
-without dropout moved fluctuation farther from the historical result.
-Dropout alone restores the average fluctuation level to within +0.683%, but
-not the individual metrics. All four choices restore all six metrics exactly.
-These effects are not additive: the changes interact and alter random-number
-consumption. This is a fixed-seed compatibility test, not a multi-seed estimate.
+- Dropout alone restores the average fluctuation level; all four choices
+  restore all six exported metrics. The effects interact through
+  random-number consumption, so they are not additive.
+- The unchanged current run repeats byte-for-byte on the other GPU.
+- Exact values: [`tdmpc2_inference_ablation.csv`](../tdmpc2_inference_ablation.csv).
 
 ## Why the historical evaluator kept dropout on
 
-The historical [Ensemble implementation](../runs/submission-pair-20261103/FW-FlightControl/tdmpc2/common/layers.py)
-stores its functional critic inside the `vmap` callable's closure. It is not a
-registered child module, so `model.eval()` does not reach its dropout layer.
-The [current implementation](../../fw_flightcontrol/agents/tdmpc2/tdmpc2/common/layers.py)
-registers the critic as `self.module`; evaluation mode now propagates to it.
+The June 12 [`Ensemble`](../runs/submission-pair-20261103/FW-FlightControl/tdmpc2/common/layers.py)
+keeps its critic inside a `vmap` closure rather than as a registered submodule,
+so `model.eval()` never reaches its dropout layer. The
+[current version](../../fw_flightcontrol/agents/tdmpc2/tdmpc2/common/layers.py)
+registers it as `self.module`. A CUDA probe confirmed this. After
+`model.eval()`, the June 12 critic's dropout (p = 0.01) is still in training
+mode and repeated Q-evaluations differ; the current critic's are identical.
+With dropout disabled, encodings, policy means and critic outputs match
+between versions.
 
-A CUDA runtime probe confirmed this, rather than relying only on source inspection:
+The old planner therefore ranked candidates with noisy critic values, which
+changed the selected controls. Current TD-MPC2's smoother control is an
+inference difference, not a missing flight-dynamics restoration.
 
-| Check after `model.eval()` | June 12 code | Current code |
-|---|---|---|
-| World model / ensemble `.training` | Both `False` | Both `False` |
-| Actual critic dropout `.training` | **`True`**, probability 0.01 | `False`, probability 0.01 |
-| Repeated `Q(..., return_type="all")`, identical inputs | Different logits; consumes CUDA RNG | Identical logits; no CUDA RNG consumed |
-| Disable the historical hidden dropout explicitly | Repeated logits become identical | Already disabled |
+The four historical choices, applied only in the diagnostic process:
 
-Using the same 64 recorded observations and checkpoint, latent encodings,
-policy means and dropout-disabled critic logits match exactly between versions.
-Matching active dropout also requires the historical **in-place** implementation
-to reproduce its random stream; with that setting and the same CUDA seed,
-the critic logits match exactly too.
+1. Policy means for planner candidates and terminal-value actions, keeping the
+   original random draws.
+2. NumPy selection of two critics instead of torch subsampling.
+3. NumPy weighted elite selection instead of the torch Gumbel sampler.
+4. Critic dropout active (p = 0.01, in place, as historically).
 
-Thus the old planner evaluated candidates using noisy critic values even in
-evaluation mode. Those values affect elite ranking and the selected controls.
-The newer evaluator's smoother controls are an inference-behaviour difference,
-not evidence of another missing flight-dynamics restoration.
+## Author decision: retain current TD-MPC2 (2026-11-04)
 
-## What the complete diagnostic restoration changes
+Keep the current TD-MPC2 implementation for training and evaluation, with
+`icinco2024` for ICINCO simulator behaviour. Do not roll back to June 12 code
+or add a legacy inference mode. Lower ActFluct is better, and the author
+considers it to strengthen ICINCO's claims; the +0.83% RMSE vs archive stays
+on record. The historical restoration is diagnostic evidence only, and
+"current" does not authorize untested upstream or dependency upgrades. The
+decision rests on seed 1 easy references on CUDA; other conditions and fresh
+training still need their own checks.
 
-1. Use policy means for planner candidates and terminal-value actions, while
-   retaining the original policy calls and their random draws.
-2. Use NumPy selection of two critic networks rather than torch subsampling.
-3. Use NumPy weighted elite selection rather than the torch Gumbel sampler.
-4. Keep critic dropout active at probability 0.01, with historical in-place
-   semantics. Other modules remain in evaluation mode.
+## Evidence and replay
 
-Historical evaluation is still stochastic: MPPI candidates, critic selection,
-elite selection and critic dropout use randomness. Policy means alone do not
-make the planner deterministic.
+- Local, Git-ignored: [`2026-11-04_tdmpc2_inference_ablation`](../runs/2026-11-04_tdmpc2_inference_ablation/)
+  (six runs, logs, configs, hashes, policy traces, `probe_critic.py` and its
+  outputs), plus the current and June 12 runs
+  [`preserved_tdmpc2_seed1_easy_cuda`](../runs/2026-11-04_preserved_tdmpc2_seed1_easy_cuda/) and
+  [`historical_tdmpc2_seed1_easy_cuda`](../runs/2026-11-04_historical_tdmpc2_seed1_easy_cuda/).
+- Planner in both versions: horizon 3, six iterations, 512 samples, 64 elites,
+  24 policy trajectories, discount 0.995.
+- All 150 episodes completed; 482 run-input hashes and the 204 protected
+  inputs validate.
+- Selected baseline: the unchanged current run, FlightControl
+  `1ad600b5beb46549898ac47821814694b4a1a67d`.
 
-## Evidence, checks and replay
-
-- [Local evidence directory](../runs/2026-11-04_tdmpc2_inference_ablation/):
-  six run directories named by the CSV's `case` values, logs, resolved configs,
-  input hashes, provenance and full policy-input/action traces.
-- [Critic probe](../runs/2026-11-04_tdmpc2_inference_ablation/probe_critic.py):
-  `critic-current` / `critic-historical` JSON and NPZ outputs record the runtime
-  checks above.
-- Source pair and runtime are those in the baseline comparison: Python 3.10.13,
-  PyTorch 2.6.0.dev20241112 / CUDA 12.4 and JSBSim 1.2.3. This is historical
-  source on the selected runtime, not a reconstruction of the 2024 binaries.
-- Planner settings agree: horizon 3, six iterations, 512 samples, 64 elites,
-  24 policy trajectories and discount 0.995. Decoder, stochastic dynamics,
-  episodic termination, compilation and the extra MPPI fluctuation term are off.
-- All **150 episodes / 300,000 steps** completed without out-of-bounds episodes.
-  Each run has `50000 x 14` observations and `25 x 2` fluctuation values.
-  Persisted policy traces are finite and their hashes validate.
-- All 482 run-manifest input-hash entries and all 204 protected baseline inputs
-  validate. Checkpoints, simulator/agent source and shared dependencies are unchanged;
-  only documentation, the summary CSV and local diagnostics were added/updated.
-
-Helpers and raw evidence are local and Git-ignored. The following command
-replays the historical diagnostic, **not the selected training/evaluation
-setup**. From `FW-RL`, use the retained helper and a **new** output name:
+Diagnostic replay of the historical inference (not the selected setup), from
+`FW-RL`, into a new directory:
 
 ```bash
 BASE="$PWD/FW-FlightControl/reproducibility/runs/2026-11-04_tdmpc2_inference_ablation"
@@ -115,37 +96,3 @@ MKL_NUM_THREADS=1 WANDB_MODE=disabled MPLBACKEND=Agg \
 /opt/anaconda3/envs/fw-310/bin/python "$BASE/run_dropout_ablation.py" \
     "$BASE/all-historical-replay" --mean-policy --numpy-q --numpy-elite
 ```
-
-## Author decision: retain current TD-MPC2 (2026-11-04)
-
-The author chooses the current TD-MPC2 implementation for the harmonized
-training/evaluation setup. **Do not roll back to June 12 code or introduce the
-previously proposed legacy inference mode.** Keep the current policy and
-sampling behaviour and correctly disabled critic dropout during evaluation.
-For ICINCO runs, retain the separate `icinco2024` simulator profile.
-
-The rationale is that lower ActFluct is better: the measured current result is
-**23.631931% lower than the June 12 rerun and 21.716908% lower than the archive**.
-The author considers this improvement to strengthen ICINCO's claims rather
-than undermine them. Exact agreement with the older, noisier evaluator is
-therefore not the operational goal. The current result also has mean RMSE
-**+0.834777% versus archive**; that measurement remains visible, not corrected
-or described as an improvement in every metric.
-
-This closes the current-vs-historical ActFluct investigation as an explained,
-accepted difference. The selected measured baseline is the unchanged-current
-row above (FlightControl `1ad600b5beb46549898ac47821814694b4a1a67d`), not the
-all-historical ablation. "Current" does not authorize untested upstream or
-dependency upgrades. No algorithm, training code or defaults changed to record
-this decision.
-
-Keep the dropout explanation, historical code references and ablation results
-as diagnostic evidence, not a second supported training/evaluation mode. The
-June 12 rerun's archive residuals (+0.235192% RMSE, +2.507623% fluctuation)
-remain in the record but are no longer a target to pursue by reverting code.
-
-The evidence covers preserved checkpoint seed 1, nominal easy references and
-RTX CUDA only. It is not a blanket tolerance, a full-paper validation, or proof
-that fresh training and every other condition improve. Historical/current full
-trajectories were not compared bit-for-bit. Continue wider coverage and fresh
-training with the current implementation before structural refactoring.

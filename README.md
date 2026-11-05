@@ -4,10 +4,10 @@ Control algorithms, training and testing scripts for a x8 Fixed Wing UAV. Uses a
 
 ## Paper reproducibility
 
-Start with the [investigation summary and experiment ledger](./reproducibility/reports/README.md),
-then the [reproduction commands](./reproducibility/README.md).
-These document the validated ICINCO PPO slice and remaining work; they do not
-certify reproduction of either complete paper.
+Start with the [reproducibility guide](./reproducibility/README.md): current
+status, the four reports and the reproduction commands. These document the
+validated ICINCO slices and remaining work; they do not certify reproduction of
+either complete paper.
 
 ## Installation
 Requires Python 3.9
