@@ -1,22 +1,30 @@
-# ICINCO nominal results: all agents, five seeds
+# ICINCO results: five-seed evaluations
 
 [Run guide and status](../README.md)
 
-Nominal atmosphere, no action regulation, easy/medium/hard references. Preserved
-PPO, SAC and TD-MPC2 (model size 5) checkpoints of training seeds 1, 2164, 2989,
-4508 and 6930 (45 CUDA runs), plus the deterministic PID controller (CPU).
-Current code + `icinco2024`, [common protocol](../README.md#common-preserved-checkpoint-protocol).
+Preserved PPO, SAC and TD-MPC2 (model size 5) checkpoints of training seeds 1,
+2164, 2989, 4508 and 6930, plus the deterministic PID controller (CPU). These
+results cover nominal conditions without action regulation and the published
+action-regulation variants, using current code + `icinco2024` and the
+[common protocol](../README.md#common-preserved-checkpoint-protocol).
 
-- **The nominal rows of ICINCO Tables 6–7 reproduce.** Current PID, PPO and SAC
-  are within 0.01 (units of 1e-2) of every published mean and SEM.
-- **TD-MPC2** matches the nominal RMSE. Hard RMSE is 2.0% lower, and ActFluct is
-  10.1% (nominal) and 6.5% (hard) lower, as expected from the
-  [inference ablation](./2026-11-04_icinco_tdmpc2_inference_ablation.md). The
-  agent ranking is unchanged.
+- **The nominal, no-action-regulation rows of ICINCO Tables 6–7 reproduce.**
+  Current PID, PPO and SAC are within 0.01 (units of 1e-2) of every published
+  mean and SEM.
+- **No-action-regulation TD-MPC2** matches the nominal RMSE. Hard RMSE is 2.0%
+  lower, and ActFluct is 10.1% (nominal) and 6.5% (hard) lower, consistent with
+  the [inference ablation](./2026-11-04_icinco_tdmpc2_inference_ablation.md).
+  The agent ranking is unchanged.
+- **Action regulation:** PPO and SAC closely match the archive; PPO CAPS
+  ActFluct is 0.8% lower nominal and 0.2% lower hard. TD-MPC2 AVP has close
+  RMSE (+0.6% nominal, +1.9% hard) but higher ActFluct
+  (+24.9% nominal, +17.6% hard). These action-regulation residuals are accepted
+  as measured, not as a general tolerance.
 - **Paper method:** "Nominal Refs" averages the easy and medium means *and SEMs*.
-  Table 7's PPO "5.29 ± 1.20" is a typo for ± 0.12.
-- **Archive files** `_1` to `_5` hold seeds 1, 2164, 6930, 4508 and 2989.
-- **Review:** the measured nominal residuals for all five seeds are
+  The paper's PPO RMSE SEMs "1.20", "1.50" and "2.10" should be 0.12, 0.15
+  and 0.21, respectively.
+- **Review:** the measured nominal, no-action-regulation residuals for all five
+  seeds are
   [accepted by the author](#author-decisions).
 
 ## Results against the paper
@@ -37,8 +45,38 @@ evaluation. The paper calls TD-MPC2 "TD-MPC".
 | SAC | RMSE | 6.64 ± 0.83 | 6.64 ± 0.83 | 6.63 ± 0.84 | 11.15 ± 0.65 | 11.15 ± 0.65 | 11.15 ± 0.65 |
 | SAC | ActFluct | 10.07 ± 1.12 | 10.07 ± 1.12 | 10.08 ± 1.12 | 12.00 ± 0.71 | 12.00 ± 0.71 | 12.00 ± 0.71 |
 
-PID is one deterministic controller, so it has no SEM. The action-regulated
-rows of Table 7 are not covered yet.
+PID is one deterministic controller, so it has no SEM.
+
+## Action-regulation variants
+
+Five-seed means ± SEM, in units of 1e-2. Each cell is archive / current; nominal
+averages easy and medium as in the paper. PPO and SAC were evaluated with CAPS
+and AVP; TD-MPC2 has AVP only (CAPS is not applicable).
+
+| Variant | RMSE nominal | ActFluct nominal | RMSE hard | ActFluct hard |
+|---|---:|---:|---:|---:|
+| PPO CAPS | 5.05 ± 0.15 / 5.05 ± 0.15 | 1.47 ± 0.27 / 1.46 ± 0.26 | 19.17 ± 4.68 / 19.17 ± 4.68 | 4.56 ± 0.60 / 4.55 ± 0.60 |
+| PPO AVP | 5.78 ± 0.21 / 5.78 ± 0.21 | 13.78 ± 3.16 / 13.78 ± 3.16 | 13.80 ± 0.82 / 13.80 ± 0.82 | 13.48 ± 2.50 / 13.48 ± 2.50 |
+| SAC CAPS | 6.79 ± 0.74 / 6.79 ± 0.74 | 0.53 ± 0.27 / 0.53 ± 0.27 | 12.28 ± 1.17 / 12.28 ± 1.17 | 1.44 ± 0.55 / 1.44 ± 0.55 |
+| SAC AVP | 6.54 ± 0.75 / 6.54 ± 0.75 | 0.50 ± 0.18 / 0.50 ± 0.18 | 15.14 ± 3.39 / 15.14 ± 3.39 | 1.20 ± 0.32 / 1.20 ± 0.32 |
+| TD-MPC2 AVP | 3.58 ± 0.01 / 3.60 ± 0.01 | 0.54 ± 0.02 / 0.68 ± 0.01 | 8.09 ± 0.03 / 8.25 ± 0.14 | 0.60 ± 0.02 / 0.70 ± 0.03 |
+
+PPO and SAC closely reproduce the archive. The PPO CAPS ActFluct shifts are
+0.8% lower nominal and 0.2% lower hard; the other aggregate differences are
+smaller. Their archive-file mapping is robust (best assignment distance
+0.00–0.25%, runner-up 50.39–202.35%). TD-MPC2's mapping is less decisive: its
+best and runner-up assignment distances are 49.04% and 50.87%, and several
+individual results are closer to another archive file. Mapping uses
+roll/pitch RMSE only; ActFluct is excluded because current TD-MPC2 inference
+differs.
+
+The archive reproduces the reported action-regulation values except for the
+two PPO nominal RMSE SEM typos above. All 75 current runs passed the runner's
+validation and input-integrity checks. Detailed per-seed comparisons, mappings,
+provenance and logs are in the local, Git-ignored
+[`2026-11-06_phase1_action_regulation`](../runs/2026-11-06_phase1_action_regulation/)
+directory (the evaluations completed Nov 5 despite its date label).
+Action-regulation residuals are accepted as measured, not as a general tolerance.
 
 ## How the paper aggregates seeds
 
@@ -119,8 +157,8 @@ smallest summed distance. All three algorithms give the same assignment.
 
 ## Author decisions
 
-Residuals are accepted as measured for the nominal, no-action-regulation
-evaluations, not as a general tolerance.
+Residuals are accepted as measured for the nominal no-action-regulation and
+action-regulation evaluations, not as a general tolerance.
 
 | Date | Decision |
 |---|---|
@@ -129,6 +167,7 @@ evaluations, not as a general tolerance.
 | Nov 4 | Keep current TD-MPC2 inference ([decision](./2026-11-04_icinco_tdmpc2_inference_ablation.md#author-decision-retain-current-td-mpc2-2026-11-04)) |
 | Nov 5 | SAC and TD-MPC2 seed 1, medium/hard accepted |
 | Nov 5 | PPO, SAC and TD-MPC2 seeds 2164, 2989, 4508 and 6930, easy/medium/hard accepted. PPO and SAC closely match the archive; TD-MPC2 residuals are larger but preserve the method ranking and the paper's overall conclusion. |
+| Nov 5 | PPO/SAC and TD-MPC2 AVP action-regulation results across five seeds accepted as measured; this is not a general tolerance. |
 
 ## Evidence
 

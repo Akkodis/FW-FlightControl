@@ -5,15 +5,17 @@
 - The nominal rows of ICINCO Tables 6–7 reproduce for PID, PPO and SAC.
 - TD-MPC2 matches the nominal RMSE with lower fluctuation, kept by author
   decision.
+- Action-regulation rows were evaluated for PPO, SAC and TD-MPC2 AVP over five
+  seeds; residuals are accepted as measured, not as a general tolerance.
 - Measured nominal residuals for all five seeds are
   [accepted by the author](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#author-decisions),
   not as a general tolerance.
-- Not yet covered: action-regulated rows, turbulence and gusts, fresh TD-MPC2
-  training and SNCS. The full papers are **not** reproduced yet.
+- Not yet covered: turbulence and gusts, fresh TD-MPC2 training and SNCS. The
+  full papers are **not** reproduced yet.
 
 | Report | Contents |
 |---|---|
-| [Nominal results, five seeds](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md) | Paper tables vs archive vs current, per-seed residuals, author decisions |
+| [ICINCO results, five seeds](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md) | Nominal and action-regulation tables vs archive/current, per-seed residuals, author decisions |
 | [PPO seed-1 drift](./reports/2026-10-30_icinco_ppo_seed1_drift_diagnosis.md) | Why current code drifted, the `icinco2024` profile, June 12, 2024 source check |
 | [PPO training](./reports/2026-11-03_icinco_ppo_training.md) | CPU vs CUDA inference, fresh seed-1 training, trainer repairs |
 | [TD-MPC2 inference ablation](./reports/2026-11-04_icinco_tdmpc2_inference_ablation.md) | Why current TD-MPC2 fluctuates less; decision to keep it |
