@@ -10,6 +10,7 @@ from evaluate_ppo_nominal import (
     evaluation_log_problems,
     paper_surface_fluctuation,
     read_metrics,
+    runtime_package_info,
     sha256,
     sim_profile_overrides, simulator_source_files,
 )
@@ -119,6 +120,51 @@ class ReferenceSetTests(unittest.TestCase):
                 "hard": ("simple_hard", "hardrefs"),
             },
         )
+
+
+class RuntimeProvenanceTests(unittest.TestCase):
+    def test_records_imported_version_separately_from_distribution_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sample_module.py").write_text('__version__ = "2.0"\n')
+            metadata = root / "sample_distribution-1.0.dist-info"
+            metadata.mkdir()
+            (metadata / "METADATA").write_text(
+                "Metadata-Version: 2.1\nName: sample-distribution\nVersion: 1.0\n"
+            )
+            result = runtime_package_info(
+                {"PYTHONPATH": str(root)}, {"sample-distribution": "sample_module"},
+            )
+            self.assertEqual(result["packages"]["sample-distribution"], "2.0")
+            self.assertEqual(result["distribution_metadata"]["sample-distribution"], "1.0")
+            self.assertEqual(result["distribution_metadata_missing"], [])
+            self.assertEqual(
+                result["runtime_module_paths"]["sample-distribution"], str(root / "sample_module.py"),
+            )
+
+    def test_records_missing_distribution_metadata_explicitly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sample_module.py").write_text('__version__ = "2.0"\n')
+            result = runtime_package_info(
+                {"PYTHONPATH": str(root)}, {"sample-distribution": "sample_module"},
+            )
+            self.assertEqual(result["packages"]["sample-distribution"], "2.0")
+            self.assertIsNone(result["distribution_metadata"]["sample-distribution"])
+            self.assertEqual(result["distribution_metadata_missing"], ["sample-distribution"])
+
+    def test_probes_with_the_evaluator_directory_first_on_the_import_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sample_module.py").write_text('__version__ = "1.0"\n')
+            entrypoint = root / "evaluator" / "evaluate.py"
+            entrypoint.parent.mkdir()
+            (entrypoint.parent / "sample_module.py").write_text('__version__ = "2.0"\n')
+            result = runtime_package_info(
+                {"PYTHONPATH": str(root)}, {"sample-distribution": "sample_module"},
+                entrypoint=entrypoint,
+            )
+            self.assertEqual(result["packages"]["sample-distribution"], "2.0")
 
 
 class SimulatorSourceFileTests(unittest.TestCase):

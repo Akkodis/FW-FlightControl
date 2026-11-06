@@ -9,7 +9,6 @@ import argparse
 import csv
 from datetime import datetime, timezone
 import hashlib
-from importlib.metadata import version
 import json
 import math
 import os
@@ -17,6 +16,7 @@ from pathlib import Path
 import platform
 import subprocess
 import sys
+from typing import Optional, TypedDict
 
 
 METRICS = (
@@ -31,6 +31,40 @@ REFERENCE_SETS = {
     "medium": ("simple_medium", "medrefs"),
     "hard": ("simple_hard", "hardrefs"),
 }
+RUNTIME_PACKAGES = {
+    "torch": "torch", "numpy": "numpy", "gymnasium": "gymnasium",
+    "jsbsim": "jsbsim", "hydra-core": "hydra", "omegaconf": "omegaconf",
+}
+RUNTIME_PROBE = """
+import importlib
+from importlib.metadata import PackageNotFoundError, version
+import json
+import sys
+
+if sys.argv[2]:
+    sys.path[0] = sys.argv[2]
+names = json.loads(sys.argv[1])
+modules = {name: importlib.import_module(module) for name, module in names.items()}
+metadata = {}
+for name in modules:
+    try:
+        metadata[name] = version(name)
+    except PackageNotFoundError:
+        metadata[name] = None
+print(json.dumps({
+    "packages": {name: str(module.__version__) for name, module in modules.items()},
+    "runtime_module_paths": {name: module.__file__ for name, module in modules.items()},
+    "distribution_metadata": metadata,
+    "distribution_metadata_missing": [name for name, value in metadata.items() if value is None],
+}))
+"""
+
+
+class RuntimePackageInfo(TypedDict):
+    packages: dict[str, str]
+    runtime_module_paths: dict[str, str]
+    distribution_metadata: dict[str, Optional[str]]
+    distribution_metadata_missing: list[str]
 
 
 def sha256(path: Path) -> str:
@@ -45,6 +79,21 @@ def git_output(repo: Path, *args: str) -> str:
     return subprocess.check_output(
         ["git", "-C", str(repo), *args], text=True
     ).strip()
+
+
+def runtime_package_info(
+    environment: dict[str, str], packages: Optional[dict[str, str]] = None,
+    *, entrypoint: Optional[Path] = None,
+) -> RuntimePackageInfo:
+    output = subprocess.check_output(
+        [
+            sys.executable, "-c", RUNTIME_PROBE,
+            json.dumps(RUNTIME_PACKAGES if packages is None else packages),
+            str(entrypoint.resolve().parent) if entrypoint else "",
+        ],
+        env={**os.environ, **environment}, text=True,
+    )
+    return json.loads(output)
 
 
 def read_metrics(path: Path) -> dict[str, float]:
@@ -169,10 +218,7 @@ def main() -> None:
         "python": sys.version,
         "executable": sys.executable,
         "platform": platform.platform(),
-        "packages": {
-            name: version(name)
-            for name in ("torch", "numpy", "gymnasium", "jsbsim", "hydra-core", "omegaconf")
-        },
+        **runtime_package_info(child_env, entrypoint=Path(command[1])),
         "sources": {
             source.name: {
                 "path": str(source),

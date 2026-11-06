@@ -6,7 +6,6 @@ The historical 750,000-step request yields 61 complete rollouts: 749,568 steps.
 
 import argparse
 from datetime import datetime, timezone
-from importlib.metadata import version
 import json
 import os
 from pathlib import Path
@@ -14,7 +13,8 @@ import subprocess
 import sys
 
 from evaluate_ppo_nominal import (
-    git_output, paper_surface_fluctuation, read_metrics, sha256, simulator_source_files,
+    git_output, paper_surface_fluctuation, read_metrics, runtime_package_info, sha256,
+    simulator_source_files,
 )
 
 
@@ -96,9 +96,7 @@ def main() -> None:
     provenance = {
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "python": sys.version, "executable": sys.executable,
-        "packages": {name: version(name) for name in (
-            "torch", "numpy", "gymnasium", "jsbsim", "hydra-core", "omegaconf",
-        )},
+        **runtime_package_info(environment, entrypoint=Path(command[1])),
         "sources": {root.name: {
             "commit": git_output(root, "rev-parse", "HEAD"),
             "status": git_output(root, "status", "--short"),

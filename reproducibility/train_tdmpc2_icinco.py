@@ -6,7 +6,6 @@ The legacy trainer's inclusive step loop collects 750,001 transitions for a
 
 import argparse
 from datetime import datetime, timezone
-from importlib.metadata import version
 import json
 import os
 from pathlib import Path
@@ -15,8 +14,8 @@ import subprocess
 import sys
 
 from evaluate_ppo_nominal import (
-    evaluation_log_problems, git_output, paper_surface_fluctuation, read_metrics,
-    sha256, simulator_source_files,
+    RUNTIME_PACKAGES, evaluation_log_problems, git_output, paper_surface_fluctuation,
+    read_metrics, runtime_package_info, sha256, simulator_source_files,
 )
 
 
@@ -77,8 +76,6 @@ def main() -> None:
     parser.add_argument("--smoke", action="store_true", help="2011 transitions; not a paper-score check")
     args = parser.parse_args()
     import torch
-    import torchrl
-    import tensordict
 
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is required; no CPU fallback")
@@ -111,15 +108,10 @@ def main() -> None:
     provenance = {
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "python": sys.version, "executable": sys.executable,
-        "packages": {
-            **{name: version(name) for name in (
-                "torch", "numpy", "gymnasium", "jsbsim", "hydra-core", "omegaconf",
-            )},
-            "torchrl": torchrl.__version__, "tensordict": tensordict.__version__,
-        },
-        "runtime_module_paths": {
-            module.__name__: module.__file__ for module in (torch, torchrl, tensordict)
-        },
+        **runtime_package_info(
+            environment, {**RUNTIME_PACKAGES, "torchrl": "torchrl", "tensordict": "tensordict"},
+            entrypoint=Path(command[1]),
+        ),
         "sources": {str(root): {
             "commit": git_output(root, "rev-parse", "HEAD"),
             "status": git_output(root, "status", "--short"),
