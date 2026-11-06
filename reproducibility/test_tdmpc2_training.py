@@ -100,22 +100,25 @@ class TDMPC2TrainingTests(unittest.TestCase):
             "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
             "WANDB_MODE": "disabled", "MPLBACKEND": "Agg", "HYDRA_FULL_ERROR": "1",
         }
-        with tempfile.TemporaryDirectory() as directory:
-            result = subprocess.run(
-                [
-                    sys.executable, str(repo / "fw_flightcontrol/train/tdmpc2_train.py"),
-                    *training_overrides(), "rl.steps=40", "rl.seed_steps=20",
-                    "rl.eval_freq=20", "env.jsbsim.episode_length_s=0.1",
-                ],
-                cwd=directory, env=environment, text=True, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, timeout=120,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout[-6000:])
-            self.assertEqual(result.stdout.count("*** Evaluating the agent ***"), 3)
-            self.assertIn("Simulator profile: icinco2024", result.stdout)
-            self.assertNotIn("Failed to save model", result.stdout)
-            checkpoint = Path(directory) / "models/train/tdmpc2/1/tdmpc2_icinco2024_noactreg_1.pt"
-            self.assertEqual(validate_checkpoint(checkpoint), 72)
+        for mode in ("current", "icinco2024"):
+            with self.subTest(inference_mode=mode), tempfile.TemporaryDirectory() as directory:
+                result = subprocess.run(
+                    [
+                        sys.executable, str(repo / "fw_flightcontrol/train/tdmpc2_train.py"),
+                        *training_overrides(), f"+rl.inference_mode={mode}",
+                        "rl.steps=40", "rl.seed_steps=20", "rl.eval_freq=20",
+                        "env.jsbsim.episode_length_s=0.1",
+                    ],
+                    cwd=directory, env=environment, text=True, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, timeout=120,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout[-6000:])
+                self.assertEqual(result.stdout.count("*** Evaluating the agent ***"), 3)
+                self.assertIn(f"Inference mode: {mode}", result.stdout)
+                self.assertIn("Simulator profile: icinco2024", result.stdout)
+                self.assertNotIn("Failed to save model", result.stdout)
+                checkpoint = Path(directory) / "models/train/tdmpc2/1/tdmpc2_icinco2024_noactreg_1.pt"
+                self.assertEqual(validate_checkpoint(checkpoint), 72)
 
 
 if __name__ == "__main__":
