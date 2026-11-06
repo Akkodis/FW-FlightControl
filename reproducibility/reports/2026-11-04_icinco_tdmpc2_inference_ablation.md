@@ -2,23 +2,19 @@
 
 [Run guide and status](../README.md)
 
-- On preserved seed 1 (easy references), current TD-MPC2 + `icinco2024` has
-  21.7% lower ActFluct and 0.83% higher RMSE than the archive. The June 12,
-  2024 source differs from the archive by only +2.51% ActFluct and +0.24% RMSE.
-- **Cause:** in the June 12 code, critic dropout stayed active during
-  evaluation because `model.eval()` did not reach it. Current code disables it
-  correctly. Restoring it, plus three historical sampling choices, reproduces
-  the June 12 metric CSV byte-for-byte; no simulator change was needed.
-- **Decision (Nov 4):** [keep current TD-MPC2](#author-decision-retain-current-td-mpc2-2026-11-04)
-  for training and evaluation.
-- Only seed 1 easy was ablated. The other seeds show
-  [seed-dependent ActFluct changes](./2026-11-05_icinco_phase1_nominal_five_seeds.md#per-seed-residuals).
+- Preserved seed 1, easy: current TD-MPC2 + `icinco2024` has 21.7% lower
+  ActFluct and 0.83% higher RMSE than the archive; the June 12, 2024 source
+  differs by only +2.51% / +0.24%.
+- **Cause:** June 12 critic dropout stayed active in evaluation (`model.eval()`
+  missed it). Restoring it plus three sampling choices reproduces the June 12
+  CSV byte-for-byte; no simulator change needed.
+- **Decision (Nov 4):** [keep current TD-MPC2](#author-decision-retain-current-td-mpc2-2026-11-04).
+- Combined choices across five seeds:
+  [disturbances](./2026-11-05_icinco_phase1_nominal_five_seeds.md#historical-td-mpc2-inference-across-five-seeds).
 
 ## Controlled results
 
-Preserved seed 1, evaluation seed 10, easy references, model size 5,
-`icinco2024`, RTX A6000 CUDA, 25 episodes / 50,000 steps. Only the listed
-inference choices change.
+Evaluation seed 10, easy, model size 5, `icinco2024`, CUDA, 25 episodes.
 
 | Inference | Mean RMSE (rad) | ActFluct (rad/sample) | ActFluct vs June 12 |
 |---|---:|---:|---:|
@@ -31,35 +27,27 @@ inference choices change.
 | Historical critic dropout only | 0.020132553 | 0.034735611 | +0.68% |
 | All four historical choices | 0.020021943 | 0.034499986 | 0.00% (byte-identical CSV) |
 
-- Dropout alone restores the average fluctuation level; all four choices
-  restore all six exported metrics. The effects interact through
-  random-number consumption, so they are not additive.
-- The unchanged current run repeats byte-for-byte on the other GPU.
+- Dropout alone restores fluctuation; effects interact via RNG consumption, so
+  are not additive.
+- Current run repeats exactly on the other GPU.
 - Exact values: [`tdmpc2_inference_ablation.csv`](../tdmpc2_inference_ablation.csv).
 
 ## Why the historical evaluator kept dropout on
 
-The June 12 [`Ensemble`](../runs/submission-pair-20261103/FW-FlightControl/tdmpc2/common/layers.py)
-keeps its critic inside a `vmap` closure rather than as a registered submodule,
-so `model.eval()` never reaches its dropout layer. The
-[current version](../../fw_flightcontrol/agents/tdmpc2/tdmpc2/common/layers.py)
-registers it as `self.module`. A CUDA probe confirmed this. After
-`model.eval()`, the June 12 critic's dropout (p = 0.01) is still in training
-mode and repeated Q-evaluations differ; the current critic's are identical.
-With dropout disabled, encodings, policy means and critic outputs match
-between versions.
+- The June 12 [`Ensemble`](../runs/submission-pair-20261103/FW-FlightControl/tdmpc2/common/layers.py)
+  holds its critic in a `vmap` closure, so `model.eval()` misses its dropout;
+  the [current version](../../fw_flightcontrol/agents/tdmpc2/tdmpc2/common/layers.py)
+  registers it as `self.module`.
+- A CUDA probe confirmed this; with dropout off, both versions' outputs match.
+- Noisy Q-values changed planner choices: an inference difference, not missing
+  flight dynamics.
 
-The old planner therefore ranked candidates with noisy critic values, which
-changed the selected controls. Current TD-MPC2's smoother control is an
-inference difference, not a missing flight-dynamics restoration.
+Historical choices restored:
 
-The four historical choices, applied only in the diagnostic process:
-
-1. Policy means for planner candidates and terminal-value actions, keeping the
-   original random draws.
-2. NumPy selection of two critics instead of torch subsampling.
-3. NumPy weighted elite selection instead of the torch Gumbel sampler.
-4. Critic dropout active (p = 0.01, in place, as historically).
+1. Policy means for planner candidates and terminal-value actions.
+2. NumPy two-critic selection instead of torch subsampling.
+3. NumPy weighted elite selection instead of the Gumbel sampler.
+4. Critic dropout active (p = 0.01, in place).
 
 ## Author decision: retain current TD-MPC2 (2026-11-04)
 
@@ -72,22 +60,32 @@ on record. The historical restoration is diagnostic evidence only, and
 decision rests on seed 1 easy references on CUDA; other conditions and fresh
 training still need their own checks.
 
+**Update (Nov 6):** The author validated the measured TD-MPC2 disturbance
+residuals and chose an opt-in paper-era inference mode with current inference
+as the default. It affects evaluation only; historical training is separate.
+See the [mode usage and limits](../README.md#paper-era-td-mpc2-inference).
+
+## Training assessment
+
+- Historical training also differs in RNG use, target-critic dropout, actor
+  objective, critic-parameter handling and replay config (local [assessment](../runs/2026-11-06_tdmpc2_legacy_mode_check/training_assessment.json)).
+- Inference restoration alone cannot reproduce training. A historical training
+  mode needs a full source/config comparison, seeded rollout and update checks,
+  and a fresh-training evaluation before claiming reproducibility.
+
 ## Evidence and replay
 
-- Local, Git-ignored: [`2026-11-04_tdmpc2_inference_ablation`](../runs/2026-11-04_tdmpc2_inference_ablation/)
-  (six runs, logs, configs, hashes, policy traces, `probe_critic.py` and its
-  outputs), plus the current and June 12 runs
+- Local: [`2026-11-04_tdmpc2_inference_ablation`](../runs/2026-11-04_tdmpc2_inference_ablation/)
+  (runs, probes), plus
   [`preserved_tdmpc2_seed1_easy_cuda`](../runs/2026-11-04_preserved_tdmpc2_seed1_easy_cuda/) and
   [`historical_tdmpc2_seed1_easy_cuda`](../runs/2026-11-04_historical_tdmpc2_seed1_easy_cuda/).
-- Planner in both versions: horizon 3, six iterations, 512 samples, 64 elites,
-  24 policy trajectories, discount 0.995.
-- All 150 episodes completed; 482 run-input hashes and the 204 protected
-  inputs validate.
-- Selected baseline: the unchanged current run, FlightControl
+- Planner (both): horizon 3, six iterations, 512 samples, 64 elites, 24 policy
+  trajectories, discount 0.995.
+- 150 episodes completed; 482 run-input and 204 protected hashes validate.
+- Selected baseline: current run, FlightControl
   `1ad600b5beb46549898ac47821814694b4a1a67d`.
 
-Diagnostic replay of the historical inference (not the selected setup), from
-`FW-RL`, into a new directory:
+Diagnostic replay of historical inference, from `FW-RL`:
 
 ```bash
 BASE="$PWD/FW-FlightControl/reproducibility/runs/2026-11-04_tdmpc2_inference_ablation"
