@@ -4,22 +4,30 @@
 > **Use JSBSim 1.1.13 for ICINCO disturbance results.** Under 1.2.3,
 > `icinco2024` misses archived turbulence (PID severe/easy RMSE 0.051151 →
 > 0.041369 rad); 1.1.13 matches all four PID levels. Do not switch versions in
-> a shared environment. Nominal and action-regulation results (1.2.3) need
-> rechecking under 1.1.13 before a single-version release. A code tag does not
-> pin the runtime; an environment lock is still needed.
+> a shared environment. Nominal and action-regulation reruns under 1.1.13 are
+> [reported here](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#jsbsim-1113-nominal-revalidation);
+> TD-MPC2 differences are accepted; PID/PPO/SAC differences (≤0.002 rad) await
+> review. A code tag does not pin the runtime.
 
 **Status (2026-11-06):**
 
 - Nominal (ICINCO Tables 6–7): PID, PPO and SAC reproduce; TD-MPC2 matches
   RMSE with lower fluctuation, kept by author decision.
-- Five-seed nominal and action-regulation (PPO, SAC, TD-MPC2 AVP) residuals:
+- Five-seed nominal and action-regulation residuals under 1.2.3:
   [author-accepted](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#author-decisions)
-  as measured, not as a tolerance.
+  as measured, not as a tolerance; under 1.1.13, TD-MPC2 is accepted and
+  PID/PPO/SAC await review.
 - Turbulence/gusts: PID and five-seed PPO/SAC/TD-MPC2 done under 1.1.13;
   residuals accepted. The TD-MPC2 turbulence-off ranking reversal traces to
-  inference changes in one run; historical-inference diagnostics are done.
+  inference changes in one run; production-mode sweeps match the earlier diagnostics.
 - TD-MPC2 has an opt-in `icinco2024` inference mode (below); historical
   training is unvalidated.
+- The 1.1.13 nominal revalidation is complete. In the locked runtime, PID,
+  PPO, SAC and TD-MPC2 pilots match their `fw-310` controls exactly (PID/PPO/SAC
+  ran before the TorchRL swap below; they do not import TorchRL).
+- The lock uses stable `tensordict==0.6.1` + `torchrl==0.6.0` instead of the
+  unavailable 2025.1.1 nightlies (TD-MPC2 pilots identical; TorchRL's unused
+  C++ extension does not load). Three wheels are still built locally.
 - Not covered: fresh TD-MPC2 training and SNCS. The papers are **not** fully
   reproduced.
 
@@ -38,6 +46,30 @@
 - PPO evaluator defaults to `current` and CPU: **pass
   `--sim-profile icinco2024 --device cuda`**.
 - Always use a new output directory; archives are never overwritten.
+
+### Candidate 1.1.13 runtime (local only)
+
+The Linux x86-64 [Conda](./locks/icinco2024-linux-64-conda.lock) and
+[pip](./locks/icinco2024-linux-64-pip.lock) locks capture the tested candidate,
+not the original paper environment or a portable release. They require the
+exact, Git-ignored wheelhouse in
+`runs/2026-11-07_icinco2024_stable_torchrl/runtime_candidate/wheels/`:
+`antlr4-python3-runtime`, `ffmpeg` and `moviepy` were built locally from PyPI
+source distributions, so their hashes are local. Preserve it.
+
+From `FW-FlightControl`, choose a **new** prefix and the preserved wheelhouse:
+
+```bash
+PREFIX=/absolute/path/to/new-icinco2024-env
+WHEELHOUSE=/absolute/path/to/preserved/wheels
+conda create --yes --prefix "$PREFIX" --file reproducibility/locks/icinco2024-linux-64-conda.lock
+PYTHONNOUSERSITE=1 "$PREFIX/bin/python" -m pip install --no-index --no-deps --require-hashes \
+    --find-links "$WHEELHOUSE" -r reproducibility/locks/icinco2024-linux-64-pip.lock
+PYTHONNOUSERSITE=1 "$PREFIX/bin/python" -m pip check
+```
+
+Keep `PYTHONNOUSERSITE=1` when running; the source checkouts are separate from
+the lock. Only the ICINCO attitude-evaluation slice is being validated.
 
 ### Preserved seed-1 PPO evaluation
 

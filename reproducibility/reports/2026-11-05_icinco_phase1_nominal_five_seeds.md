@@ -4,8 +4,8 @@
 
 > [!WARNING]
 > **ICINCO disturbance reproduction needs JSBSim 1.1.13**; the historical
-> profile cannot compensate for turbulence changes in 1.2.3. Nominal and
-> action-regulation results used 1.2.3 and are not yet revalidated with 1.1.13.
+> profile cannot compensate for turbulence changes in 1.2.3. The tables below
+> use 1.2.3 for nominal/action regulation; the 1.1.13 reruns are summarized below.
 
 Preserved PPO, SAC and TD-MPC2 (size 5) checkpoints of training seeds 1, 2164,
 2989, 4508 and 6930, plus deterministic PID, run with current code, `icinco2024`
@@ -19,7 +19,8 @@ and the [common protocol](../README.md#common-preserved-checkpoint-protocol).
   turbulence-off; stronger turbulence still deviates.
 - **Paper typos:** PPO RMSE SEMs "1.20", "1.50", "2.10" should be 0.12, 0.15,
   0.21.
-- All measured residuals are [accepted by the author](#author-decisions).
+- Previously reported residuals are [accepted by the author](#author-decisions);
+  under 1.1.13, TD-MPC2 differences are accepted; PID/PPO/SAC await review.
 
 ## Results against the paper
 
@@ -54,11 +55,19 @@ All 75 runs passed validation; TD-MPC2 archive-file assignment is less clear
 than PPO/SAC. Per-seed evidence:
 [`2026-11-06_phase1_action_regulation`](../runs/2026-11-06_phase1_action_regulation/).
 
+## JSBSim 1.1.13 nominal revalidation
+
+All 123 PID and five-seed neural nominal/action-regulation runs completed. Compared
+with 1.2.3, the largest per-run mean RMSE change was `+0.02036985` rad (tdmpc2_s2164_hard_cuda);
+the largest mean ActFluct change was `-0.00232667464` rad/sample (tdmpc2_s2164_hard_cuda).
+14/68 nominal/hard mean or SEM fields changed at the paper's displayed precision.
+TD-MPC2 1.1.13 residuals are [accepted](#author-decisions); PID/PPO/SAC (≤0.002 rad) await review. Local evidence: [per seed](../runs/2026-11-06_phase1_jsbsim1113_validation/audit/nominal_per_seed.csv), [aggregates](../runs/2026-11-06_phase1_jsbsim1113_validation/audit/nominal_aggregates.csv).
+
 ## Turbulence and gusts
 
 Figures 2–3 use PPO CAPS, SAC CAPS and TD-MPC2 AVP checkpoints. Turbulence
 has **light steady wind at every level, including `off`**; gusts have none.
-Severities run sequentially in one process; all 64 runs used JSBSim 1.1.13.
+Severities run sequentially in one process; the 64 current-inference runs used JSBSim 1.1.13.
 The [aggregate CSV](../icinco_disturbance_aggregates.csv) holds every mean and
 SEM.
 
@@ -118,8 +127,9 @@ of the squared error
 
 ### Historical TD-MPC2 inference across five seeds
 
-Twenty sweeps with the [opt-in mode](../README.md#paper-era-td-mpc2-inference);
-archive → historical:
+Twenty [production-mode](../README.md#paper-era-td-mpc2-inference) sweeps matched
+the earlier diagnostic on all six metrics and 100 logged rewards per sweep;
+archive → production:
 
 | Condition | Level | RMSE (rad) | ActFluct (rad/sample) |
 |---|---|---|---|
@@ -182,6 +192,7 @@ Residuals are accepted as measured, not as a general tolerance.
 | Nominal, all five seeds | Measured residuals accepted; method ranking remains unchanged. |
 | Action regulation, all five seeds | Measured residuals accepted. |
 | Turbulence and gusts | PID/PPO/SAC/TD-MPC2 measured residuals accepted. |
+| Nominal/action regulation, JSBSim 1.1.13 (2026-11-07) | TD-MPC2 and TD-MPC2 AVP measured residuals accepted; PID/PPO/SAC pending. |
 | TD-MPC2 inference | [Keep current inference as default](./2026-11-04_icinco_tdmpc2_inference_ablation.md#author-decision-retain-current-td-mpc2-2026-11-04); paper-era inference is opt-in. |
 
 ## Evidence
