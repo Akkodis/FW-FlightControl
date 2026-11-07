@@ -6,8 +6,7 @@
 > 0.041369 rad); 1.1.13 matches all four PID levels. Do not switch versions in
 > a shared environment. Nominal and action-regulation reruns under 1.1.13 are
 > [reported here](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#jsbsim-1113-nominal-revalidation);
-> TD-MPC2 differences are accepted; PID/PPO/SAC differences (≤0.002 rad) await
-> review. A code tag does not pin the runtime.
+> measured residuals are accepted. A code tag does not pin the runtime.
 
 **Status (2026-11-06):**
 
@@ -15,8 +14,8 @@
   RMSE with lower fluctuation, kept by author decision.
 - Five-seed nominal and action-regulation residuals under 1.2.3:
   [author-accepted](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#author-decisions)
-  as measured, not as a tolerance; under 1.1.13, TD-MPC2 is accepted and
-  PID/PPO/SAC await review.
+  as measured, not as a tolerance; 1.1.13 nominal/action-regulation residuals
+  for all agents are also accepted as measured.
 - Turbulence/gusts: PID and five-seed PPO/SAC/TD-MPC2 done under 1.1.13;
   residuals accepted. The TD-MPC2 turbulence-off ranking reversal traces to
   inference changes in one run; production-mode sweeps match the earlier diagnostics.

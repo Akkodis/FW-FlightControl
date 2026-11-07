@@ -20,7 +20,7 @@ and the [common protocol](../README.md#common-preserved-checkpoint-protocol).
 - **Paper typos:** PPO RMSE SEMs "1.20", "1.50", "2.10" should be 0.12, 0.15,
   0.21.
 - Previously reported residuals are [accepted by the author](#author-decisions);
-  under 1.1.13, TD-MPC2 differences are accepted; PID/PPO/SAC await review.
+  the 1.1.13 nominal/action-regulation residuals are accepted as measured too.
 
 ## Results against the paper
 
@@ -61,7 +61,7 @@ All 123 PID and five-seed neural nominal/action-regulation runs completed. Compa
 with 1.2.3, the largest per-run mean RMSE change was `+0.02036985` rad (tdmpc2_s2164_hard_cuda);
 the largest mean ActFluct change was `-0.00232667464` rad/sample (tdmpc2_s2164_hard_cuda).
 14/68 nominal/hard mean or SEM fields changed at the paper's displayed precision.
-TD-MPC2 1.1.13 residuals are [accepted](#author-decisions); PID/PPO/SAC (≤0.002 rad) await review. Local evidence: [per seed](../runs/2026-11-06_phase1_jsbsim1113_validation/audit/nominal_per_seed.csv), [aggregates](../runs/2026-11-06_phase1_jsbsim1113_validation/audit/nominal_aggregates.csv).
+The author accepts all measured residuals. Local evidence: [per seed](../runs/2026-11-06_phase1_jsbsim1113_validation/audit/nominal_per_seed.csv), [aggregates](../runs/2026-11-06_phase1_jsbsim1113_validation/audit/nominal_aggregates.csv).
 
 ## Turbulence and gusts
 
@@ -192,7 +192,7 @@ Residuals are accepted as measured, not as a general tolerance.
 | Nominal, all five seeds | Measured residuals accepted; method ranking remains unchanged. |
 | Action regulation, all five seeds | Measured residuals accepted. |
 | Turbulence and gusts | PID/PPO/SAC/TD-MPC2 measured residuals accepted. |
-| Nominal/action regulation, JSBSim 1.1.13 (2026-11-07) | TD-MPC2 and TD-MPC2 AVP measured residuals accepted; PID/PPO/SAC pending. |
+| Nominal/action regulation, JSBSim 1.1.13 (2026-11-07) | PID/PPO/SAC/TD-MPC2 measured residuals accepted. |
 | TD-MPC2 inference | [Keep current inference as default](./2026-11-04_icinco_tdmpc2_inference_ablation.md#author-decision-retain-current-td-mpc2-2026-11-04); paper-era inference is opt-in. |
 
 ## Evidence
