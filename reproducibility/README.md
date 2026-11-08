@@ -8,7 +8,7 @@
 > [reported here](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#jsbsim-1113-nominal-revalidation);
 > measured residuals are accepted. A code tag does not pin the runtime.
 
-**Status (2026-11-06):**
+**Status (2026-11-07):**
 
 - Nominal (ICINCO Tables 6–7): PID, PPO and SAC reproduce; TD-MPC2 matches
   RMSE with lower fluctuation, kept by author decision.
@@ -19,6 +19,10 @@
 - Turbulence/gusts: PID and five-seed PPO/SAC/TD-MPC2 done under 1.1.13;
   residuals accepted. The TD-MPC2 turbulence-off ranking reversal traces to
   inference changes in one run; production-mode sweeps match the earlier diagnostics.
+- Phase 1 protocol audit and agreed targeted trace set are complete; seven
+  25-episode traces reproduce their six summary metrics within CSV rounding.
+  Coverage and remaining attribution gaps are documented in the
+  [results report](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#phase-1-protocol-and-trace-audit).
 - TD-MPC2 has an opt-in `icinco2024` inference mode (below); historical
   training is unvalidated.
 - The 1.1.13 nominal revalidation is complete. In the locked runtime, PID,

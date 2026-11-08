@@ -146,7 +146,8 @@ Exact matches per 10 rows, off/light/moderate/severe: turbulence `10/9/7/3`,
 gust `10/10/10/10`, using the inferred mapping
 `{1: 1, 2164: 2, 2989: 5, 4508: 4, 6930: 3}`. Archived rankings hold
 throughout. The largest gap (turbulence/severe seed 2164 medium, +0.00385782
-rad) is undiagnosed.
+rad) remains causally unexplained, but is accepted as a measured residual;
+production inference matches the diagnostic replay.
 
 After a scheduler error, sweeps were rerun and independently validated. The
 launcher omitted the evaluator from its input hashes; it was checked separately.
@@ -169,6 +170,21 @@ Runs load 1.1.13 from `fw-old` into `fw-310`; results are in
 Per level: five-seed mean, SEM = std / √5 (`compute_seed_statistics.py`).
 "Nominal Refs" averages easy and medium means *and SEMs*; per-seed averaging
 does not match (SAC RMSE SEM 0.74, not 0.83).
+
+## Phase 1 protocol and trace audit
+
+The evaluator/config audit confirms the 25 × 2,000-step protocol at 100 Hz,
+the metric formulas, fixed evaluation/reference/JSBSim seeds, atmosphere
+settings and gust timing. Seven agreed traces cover PID/PPO/SAC/TD-MPC2 nominal,
+TD-MPC2 hard nominal, severe turbulence and severe gust. Each has 25 complete
+episodes and 50,000 steps; all six trace-recomputed metrics match their saved
+summaries at CSV precision, including float32 RMSE serialization. The
+severe-gust trace verifies triggers at steps 500 and 1,500 in every episode.
+Traces are local, Git-ignored artifacts
+under [`2026-11-07_phase1_traces`](../runs/2026-11-07_phase1_traces/), not a
+full-matrix trace archive. Verification sidecars record launch hashes for the
+loader and capture hook; the outer runner was changed after launch only to
+register its own hash, which is explicitly marked as post-launch.
 
 ## Per-seed residuals
 
