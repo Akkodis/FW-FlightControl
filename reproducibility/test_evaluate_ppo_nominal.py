@@ -75,9 +75,9 @@ class SimulatorProfileTests(unittest.TestCase):
     def test_default_profile_keeps_legacy_command(self) -> None:
         self.assertEqual(sim_profile_overrides("current"), [])
 
-    def test_historical_profile_adds_config_key(self) -> None:
+    def test_historical_profile_overrides_config_key(self) -> None:
         self.assertEqual(
-            sim_profile_overrides("icinco2024"), ["+env.jsbsim.sim_profile=icinco2024"]
+            sim_profile_overrides("icinco2024"), ["env.jsbsim.sim_profile=icinco2024"]
         )
 
     def test_rejects_unknown_profile(self) -> None:

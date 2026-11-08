@@ -121,8 +121,8 @@ CUDA_VISIBLE_DEVICES=0 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/
   then easy-reference evaluation. Fails if either metric leaves the archived
   five-seed range ([results](./reports/2026-11-03_icinco_ppo_training.md)).
 - `--smoke`: 4,096 transitions, not a paper-score check.
-- Hydra entry points take `+env.jsbsim.sim_profile=icinco2024` (`+` keeps
-  protected YAML unchanged). Not every legacy trainer works yet.
+- Hydra entry points take `env.jsbsim.sim_profile=icinco2024` (the YAML
+  default is `current`). Not every legacy trainer works yet.
 
 ### Fresh seed-1 TD-MPC2 training, then evaluation
 
@@ -149,13 +149,13 @@ CUDA_VISIBLE_DEVICES=0 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/
 
 ### Paper-era TD-MPC2 inference
 
-Pass `+rl.inference_mode=icinco2024` to the
+Pass `rl.inference_mode=icinco2024` to the
 [TD-MPC2 attitude evaluator](../fw_flightcontrol/eval/attitude_control/tdmpc2_eval_simple.py)
-(`current` is the default; the `+` leaves protected YAML unchanged).
+(the YAML default is `current`).
 
 - Restores policy means for planner trajectories and terminal values, NumPy
   critic and elite sampling, and active critic dropout.
-- Sets no profile or dependency: add `+env.jsbsim.sim_profile=icinco2024` and,
+- Sets no profile or dependency: add `env.jsbsim.sim_profile=icinco2024` and,
   for disturbances, JSBSim 1.1.13.
 - Only single-task, state-based MPC with an encoder, five critics and dropout
   0.01; compilation, episodic/model-free modes, MPPI action-fluctuation
@@ -208,7 +208,12 @@ Pass `+rl.inference_mode=icinco2024` to the
   ICINCO, 48 SNCS); four attitude and five waypoint reference/seed arrays;
   FlightControl and X8 trim YAML and simulator XML assets; both paper PDFs,
   package setup files and JSBGym environment manifests. Detects accidental
-  changes only.
+  changes only. On 2026-11-08 the hashes of 11 config files (`default.yaml`,
+  `tdmpc2_default.yaml`, `env/jsbsim/*.yaml`) were refreshed after their
+  options gained explicit defaults that keep the earlier behavior:
+  `sim_profile`, `plot_at_episode_end`, `inference_mode` and the `icinco`
+  block. Earlier runs passed these options as `+key=value`, which Hydra now
+  rejects because the keys exist; use `key=value`.
 - **Revamp starting commits** (clean `main`, not paper-era): FlightControl
   `bffe6c33e7268d39811a652a83218e20ae2e9384`, JSBGym
   `571a52fe02ec3f7fc78968a076fa68a536be1455`.

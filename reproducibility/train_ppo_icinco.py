@@ -28,7 +28,7 @@ def training_overrides(device: str, smoke: bool = False) -> list[str]:
         "rl.PPO.save_cp=false", "rl.PPO.final_traj_plot=false", "rl.PPO.final_eval=false",
         "rl.PPO.periodic_eval=true", "rl.PPO.ref_sampler=uniform",
         "roll_limit=60", "pitch_limit=30",
-        "env.jsbsim.debug=false", "+env.jsbsim.sim_profile=icinco2024",
+        "env.jsbsim.debug=false", "env.jsbsim.sim_profile=icinco2024",
         "env.jsbsim.eval_sim_options.atmosphere.severity=off",
         "hydra.run.dir=hydra", "hydra.job.chdir=false",
     ]

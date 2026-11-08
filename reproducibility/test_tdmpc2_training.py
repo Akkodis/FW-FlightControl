@@ -21,7 +21,7 @@ class TDMPC2TrainingTests(unittest.TestCase):
             "rl.seed=1", "rl.model_size=5", "rl.steps=750000", "rl.compile=false",
             "rl.use_caps=false", "rl.save_agent=true", "rl.disable_wandb=true",
             "rl.periodic_eval=true", "rl.eval_freq=37500",
-            "+env.jsbsim.sim_profile=icinco2024",
+            "env.jsbsim.sim_profile=icinco2024",
         ):
             self.assertIn(value, overrides)
         self.assertIn("rl.steps=2010", training_overrides(smoke=True))
@@ -105,7 +105,7 @@ class TDMPC2TrainingTests(unittest.TestCase):
                 result = subprocess.run(
                     [
                         sys.executable, str(repo / "fw_flightcontrol/train/tdmpc2_train.py"),
-                        *training_overrides(), f"+rl.inference_mode={mode}",
+                        *training_overrides(), f"rl.inference_mode={mode}",
                         "rl.steps=40", "rl.seed_steps=20", "rl.eval_freq=20",
                         "env.jsbsim.episode_length_s=0.1",
                     ],

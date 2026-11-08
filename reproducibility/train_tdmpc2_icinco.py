@@ -27,7 +27,7 @@ def training_overrides(smoke: bool = False) -> list[str]:
         "rl.save_agent=true", "rl.disable_wandb=true", "rl.final_traj_plot=false",
         "rl.periodic_eval=true", "rl.eval_freq=37500",
         "env/task/reward=ac_my_bohn", "env.jsbsim.debug=false",
-        "+env.jsbsim.sim_profile=icinco2024",
+        "env.jsbsim.sim_profile=icinco2024",
         "env.jsbsim.eval_sim_options.atmosphere.severity=off",
         "hydra.run.dir=hydra", "hydra.job.chdir=false",
     ]
@@ -168,7 +168,7 @@ def main() -> None:
         "rl=attitude_control/ac_tdmpc2", "rl.seed=10", "rl.model_size=5",
         f"rl.checkpoint={checkpoint}", "rl.ref_file=simple_easy", "rl.res_file=metrics",
         "rl.disable_wandb=true", "env/task/reward=ac_my_bohn",
-        "env.jsbsim.debug=false", "+env.jsbsim.sim_profile=icinco2024",
+        "env.jsbsim.debug=false", "env.jsbsim.sim_profile=icinco2024",
         "env.jsbsim.eval_sim_options.atmosphere.severity=off",
         "hydra.run.dir=hydra", "hydra.job.chdir=false",
     ]

@@ -124,8 +124,8 @@ def simulator_source_files(simulator: Path) -> list[Path]:
 def sim_profile_overrides(sim_profile: str) -> list[str]:
     if sim_profile not in SIM_PROFILE_FCS_CHANNELS:
         raise ValueError(f"Unknown simulator profile: {sim_profile}")
-    # The default profile adds no key so that simulators predating profiles can still be compared.
-    return [] if sim_profile == DEFAULT_SIM_PROFILE else [f"+env.jsbsim.sim_profile={sim_profile}"]
+    # The YAML default is the default profile, so only other profiles need an override.
+    return [] if sim_profile == DEFAULT_SIM_PROFILE else [f"env.jsbsim.sim_profile={sim_profile}"]
 
 
 def evaluation_log_problems(log_text: str, sim_profile: str) -> list[str]:

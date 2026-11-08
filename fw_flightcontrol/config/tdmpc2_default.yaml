@@ -7,6 +7,18 @@ defaults:
     - env/task/reward: wp_course_alt
     - override hydra/launcher: submitit_local
 
+# ICINCO 2024 evaluation job: set by `python -m fw_flightcontrol.eval.icinco2024`,
+# whose worker checks the composed config against it; unused otherwise
+icinco:
+    output: null # job output directory
+    preview: false # interactive episode preview instead of a paper evaluation
+    preview_episode: 1 # first previewed episode (1-25)
+    algorithm: null # pid, ppo, sac or tdmpc2
+    variant: null # none, caps or avp
+    condition: null # nominal, turbulence or gust
+    seed: null # training seed (null for PID)
+    reference: null # easy, medium or hard
+
 
 rl:
     # sampling targets
@@ -26,6 +38,7 @@ rl:
     periodic_eval: true
     eval_episodes: 10
     eval_freq: 50000
+    inference_mode: current # current, or icinco2024 for the ICINCO 2024 paper-era evaluation inference
 
     # training
     steps: 10_000_000

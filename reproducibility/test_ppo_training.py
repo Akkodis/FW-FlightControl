@@ -15,7 +15,7 @@ class PPOTrainingTests(unittest.TestCase):
             "rl.PPO.total_timesteps=750000", "rl.PPO.num_envs=6", "rl.PPO.num_steps=2048",
             "rl.PPO.ts_coef=0", "rl.PPO.ss_coef=0", "rl.PPO.pa_coef=0",
             "roll_limit=60", "pitch_limit=30", "rl.PPO.cuda=true",
-            "+env.jsbsim.sim_profile=icinco2024",
+            "env.jsbsim.sim_profile=icinco2024",
         ):
             self.assertIn(value, overrides)
 
@@ -39,10 +39,10 @@ class PPOTrainingTests(unittest.TestCase):
             with self.subTest(profile=profile), tempfile.TemporaryDirectory() as directory:
                 overrides = [
                     value for value in training_overrides("cpu", smoke=True)
-                    if not value.startswith("+env.jsbsim.sim_profile=")
+                    if not value.startswith("env.jsbsim.sim_profile=")
                 ]
                 overrides += [
-                    f"+env.jsbsim.sim_profile={profile}",
+                    f"env.jsbsim.sim_profile={profile}",
                     "rl.PPO.num_steps=16", "rl.PPO.total_timesteps=64",
                     "rl.PPO.num_minibatches=2", "rl.PPO.update_epochs=1",
                     "env.jsbsim.episode_length_s=0.04",
