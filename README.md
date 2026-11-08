@@ -10,10 +10,22 @@ validated ICINCO slices and remaining work; they do not certify reproduction of
 either complete paper.
 
 ## Installation
-Requires Python 3.9
+For ICINCO checkpoint evaluations, create the dedicated Linux x86-64
+environment once, from this directory:
 
-- Install [FW-JSBSim](https://github.com/Akkodis/FW-JSBGym)
-- Install `fw_flightcontrol` as a pip package with: `pip install -e .`
+```bash
+conda env create -f environment-icinco2024.yml
+conda activate fw-icinco2024
+```
+
+Keep FW-JSBGym as a sibling checkout and initialize the TD-MPC2 submodule.
+Neural evaluations also require an NVIDIA GPU and a CUDA 12.4-compatible
+driver. See the [runtime guide](./reproducibility/README.md#icinco-evaluation-environment)
+for the exact-lock alternative and limitations.
+
+For other project work, continue using `fw-310`; do not change its JSBSim
+version. The general installation instructions are to install
+[FW-JSBSim](https://github.com/Akkodis/FW-JSBGym), then run `pip install -e .`.
 
 ## Directory organization
 - `agents/`: Contains the agents.

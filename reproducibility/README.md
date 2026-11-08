@@ -50,7 +50,28 @@
   `--sim-profile icinco2024 --device cuda`**.
 - Always use a new output directory; archives are never overwritten.
 
-### Candidate 1.1.13 runtime (local only)
+### ICINCO evaluation environment
+
+On Linux x86-64, create the environment once from `FW-FlightControl`:
+
+```bash
+conda env create -f environment-icinco2024.yml
+conda activate fw-icinco2024
+```
+
+The specification pins the tested JSBSim 1.1.13, Python 3.10, PyTorch
+nightly/CUDA 12.4, TorchRL and TensorDict versions. Activation sets
+`PYTHONNOUSERSITE=1`. The neural controllers need a CUDA 12.4-compatible
+NVIDIA driver; PID runs on the CPU.
+
+This convenient specification resolves remaining dependencies at creation
+time: it is **not the exact lock** or the original paper environment.
+It supplies the ICINCO attitude-evaluation dependencies, not the full
+training stack; historical training and other tasks are not validated. The
+stable TorchRL C++ extension does not load with this PyTorch nightly; the
+evaluated inference path does not use it.
+
+### Exact locked candidate (optional; local only)
 
 The Linux x86-64 [Conda](./locks/icinco2024-linux-64-conda.lock) and
 [pip](./locks/icinco2024-linux-64-pip.lock) locks capture the tested candidate,
