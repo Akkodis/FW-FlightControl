@@ -109,43 +109,11 @@ CUDA_VISIBLE_DEVICES=0 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/
 - Validates device, profile, metrics, counts and hashes. **Exit zero means
   completed, not matched.**
 
-### Fresh seed-1 PPO training, then evaluation
+### Training
 
-```bash
-CUDA_VISIBLE_DEVICES=0 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
-    reproducibility/train_ppo_icinco.py --device cuda \
-    reproducibility/runs/fresh-seed1-new
-```
-
-- `icinco2024`, no tracking; 749,568 transitions (750,000 in full rollouts),
-  then easy-reference evaluation. Fails if either metric leaves the archived
-  five-seed range ([results](./reports/2026-11-03_icinco_ppo_training.md)).
-- `--smoke`: 4,096 transitions, not a paper-score check.
-- Hydra entry points take `env.jsbsim.sim_profile=icinco2024` (the YAML
-  default is `current`). Not every legacy trainer works yet.
-
-### Fresh seed-1 TD-MPC2 training, then evaluation
-
-```bash
-CUDA_VISIBLE_DEVICES=0 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/fw-310/bin/python \
-    reproducibility/train_tdmpc2_icinco.py \
-    reproducibility/runs/fresh-tdmpc2-seed1-new
-```
-
-- Current TD-MPC2 ([author decision](./reports/2026-11-04_icinco_tdmpc2_inference_ablation.md#author-decision-retain-current-td-mpc2-2026-11-04)),
-  size 5, `icinco2024`, no action regularization, CUDA only, no tracking.
-- 750,001 transitions (inclusive loop for 750,000), evaluation every 37,500
-  steps; final checkpoint on 25 easy episodes, seed 10.
-- Compares with seed 1 and the five-seed range descriptively; **completion does
-  not accept scores.**
-- `--smoke`: 2,011 transitions, shorter warmup, no evaluation.
-- Six regression tests and CUDA smoke pass. Full run cancelled Nov 4 at
-  ~24,000 steps, no checkpoint; restart only on request, fresh, in a new
-  directory, in byobu. Evidence: [smoke](./runs/2026-11-04_tdmpc2_training_smoke_verified/),
-  [cancelled run](./runs/2026-11-04_tdmpc2_seed1_full_cuda/).
-- Submodule fixes on `revamp/reproducibility-first` of Dobid/tdmpc2:
-  `96fe24e` saves checkpoints with W&B disabled; `bce5911` fails training when
-  a checkpoint save fails.
+The experimental reproduction training launchers have been retired. Their
+historical results and limitations remain in the reports above; a fresh
+training workflow remains future work.
 
 ### Paper-era TD-MPC2 inference
 

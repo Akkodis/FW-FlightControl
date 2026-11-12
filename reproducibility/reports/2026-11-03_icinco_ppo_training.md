@@ -72,8 +72,8 @@ kept.
 
 - No archived YAML, algorithm, reward or default behaviour changed.
 - Normalized PPO, SAC and TD3 trainers are not repaired.
-- [`train_ppo_icinco.py`](../train_ppo_icinco.py) checks input hashes and
-  fails if a metric leaves its predeclared range.
+- The former `train_ppo_icinco.py` launcher (available in Git history)
+  checked input hashes and failed if a metric left its predeclared range.
 
 ## Source pair and branches
 
