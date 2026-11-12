@@ -1,4 +1,5 @@
 # Logging
+/outputs/
 fw_flightcontrol/agents/tdmpc2/tdmpc2/logs/
 fw_flightcontrol/agents/tdmpc2/tdmpc2/outputs/
 fw_flightcontrol/agents/tdmpc2/tdmpc2/wandb/
