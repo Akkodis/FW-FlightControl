@@ -1,0 +1,5 @@
+entries:
+  - path: eval/attitude_control/targets/easy.npy
+  - path: eval/attitude_control/targets/medium.npy
+  - path: eval/attitude_control/targets/hard.npy
+simulator_seed_file: eval/attitude_control/targets/jsbsim_seeds.npy

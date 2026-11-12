@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - override /evaluation: icinco2024
+  - override /targets: icinco2024
+  - override /algorithm: pid
+  - override /env/jsbsim: noatmo
+  - override /env/task/mdp: no_hist_all
+  - override /env/task/reward: ac_my_bohn
+  - _self_
+
+env:
+  jsbsim:
+    sim_profile: icinco2024
+    debug: false
+
+rl:
+  inference_mode: icinco2024

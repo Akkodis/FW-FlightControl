@@ -19,15 +19,3 @@ res_file: test # path to a results file for eval
 # to be changed, env_id should be out of the agents (PID/RL) dict
 PID:
     env_id: ACBohnNoVaIErr-v0
-
-# ICINCO 2024 evaluation job: set by `python -m fw_flightcontrol.eval.icinco2024`,
-# whose worker checks the composed config against it; unused otherwise
-icinco:
-    output: null # job output directory
-    preview: false # interactive episode preview instead of a paper evaluation
-    preview_episode: 1 # first previewed episode (1-25)
-    algorithm: null # pid, ppo, sac or tdmpc2
-    variant: null # none, caps or avp
-    condition: null # nominal, turbulence or gust
-    seed: null # training seed (null for PID)
-    reference: null # easy, medium or hard

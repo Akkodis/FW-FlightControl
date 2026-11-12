@@ -186,6 +186,29 @@ full-matrix trace archive. Verification sidecars record launch hashes for the
 loader and capture hook; the outer runner was changed after launch only to
 register its own hash, which is explicitly marked as post-launch.
 
+## Evaluation harness validation
+
+The former ICINCO entry point (now retired) completed 12 jobs (375 full
+episodes) under the isolated JSBSim 1.1.13 runtime.
+Six controls match Phase 1 at saved float32 RMSE precision, with identical
+ActFluct: PID/PPO/SAC easy seed 1, TD-MPC2 easy seed 1 (`current` inference),
+and TD-MPC2 medium seed 2164 under severe turbulence/gust (`icinco2024`).
+The old PID entry point also gives a byte-identical control CSV.
+
+Paper-era TD-MPC2 easy inference and an ordered turbulence sweep completed.
+The four-job PPO matrix (seeds 1/2164, easy/medium) verifies parallel isolation,
+per-level mean/SEM and the paper's separate easy/medium aggregation; repeated
+seed-1 easy metrics are identical to the standalone job. Every worker verified
+its input hashes after execution. The 16 harness tests and 32 reproduction
+tests pass; protected inputs are unchanged.
+
+Evidence: [`validation.json`](../runs/2026-11-07_icinco_harness_validation/validation.json).
+Single-severity controls are not interchangeable with a full sweep's severe
+row because RNG history differs. Preview routing is tested, not interactive
+FlightGear/Matplotlib display. These results validate the former harness, not
+full historical equivalence of its generic successor, or historical training
+equivalence; they do not change the accepted paper residuals.
+
 ## Per-seed residuals
 
 See [`per_seed.csv`](../runs/2026-11-05_phase1_nominal_five_seeds/per_seed.csv).
@@ -209,7 +232,7 @@ Residuals are accepted as measured, not as a general tolerance.
 | Action regulation, all five seeds | Measured residuals accepted. |
 | Turbulence and gusts | PID/PPO/SAC/TD-MPC2 measured residuals accepted. |
 | Nominal/action regulation, JSBSim 1.1.13 (2026-11-07) | PID/PPO/SAC/TD-MPC2 measured residuals accepted. |
-| TD-MPC2 inference | [Keep current inference as default](./2026-11-04_icinco_tdmpc2_inference_ablation.md#author-decision-retain-current-td-mpc2-2026-11-04); paper-era inference is opt-in. |
+| TD-MPC2 inference | [Keep current inference](./2026-11-04_icinco_tdmpc2_inference_ablation.md#author-decision-retain-current-td-mpc2-2026-11-04) in the old entry points; the generic ICINCO preset defaults to paper-era inference, with `rl.inference_mode=current` available. Neither changes training semantics. |
 
 ## Evidence
 

@@ -12,7 +12,7 @@ from evaluate_ppo_nominal import (
     read_metrics,
     runtime_package_info,
     sha256,
-    sim_profile_overrides, simulator_source_files,
+    simulator_source_files,
 )
 
 
@@ -72,18 +72,6 @@ class SimulatorProfileTests(unittest.TestCase):
             + f"eps_fcs_fluct shape: (25, {channels})\n" + profile_line
         )
 
-    def test_default_profile_keeps_legacy_command(self) -> None:
-        self.assertEqual(sim_profile_overrides("current"), [])
-
-    def test_historical_profile_overrides_config_key(self) -> None:
-        self.assertEqual(
-            sim_profile_overrides("icinco2024"), ["env.jsbsim.sim_profile=icinco2024"]
-        )
-
-    def test_rejects_unknown_profile(self) -> None:
-        with self.assertRaises(ValueError):
-            sim_profile_overrides("icinco2023")
-
     def test_accepts_expected_logs(self) -> None:
         self.assertEqual(evaluation_log_problems(self.log(3), "current"), [])
         self.assertEqual(
@@ -115,9 +103,9 @@ class ReferenceSetTests(unittest.TestCase):
         self.assertEqual(
             REFERENCE_SETS,
             {
-                "easy": ("simple_easy", "easyrefs"),
-                "medium": ("simple_medium", "medrefs"),
-                "hard": ("simple_hard", "hardrefs"),
+                "easy": ("easy", "easyrefs"),
+                "medium": ("medium", "medrefs"),
+                "hard": ("hard", "hardrefs"),
             },
         )
 

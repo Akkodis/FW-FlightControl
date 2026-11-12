@@ -1,4 +1,4 @@
-"""Run the unchanged ICINCO PPO evaluator on easy references / no wind.
+"""Compare a seed-1 PPO checkpoint with the archived nominal metrics.
 
 Defaults to the archived seed-1 checkpoint and CPU; archives are only read.
 `--sim-profile icinco2024` selects the FW-JSBGym simulator profile of the ICINCO experiments.
@@ -27,9 +27,9 @@ DEFAULT_SIM_PROFILE = "current"
 # Recorded control surface channels: aileron, elevator (+ throttle in the current profile).
 SIM_PROFILE_FCS_CHANNELS = {"current": 3, "icinco2024": 2}
 REFERENCE_SETS = {
-    "easy": ("simple_easy", "easyrefs"),
-    "medium": ("simple_medium", "medrefs"),
-    "hard": ("simple_hard", "hardrefs"),
+    "easy": ("easy", "easyrefs"),
+    "medium": ("medium", "medrefs"),
+    "hard": ("hard", "hardrefs"),
 }
 RUNTIME_PACKAGES = {
     "torch": "torch", "numpy": "numpy", "gymnasium": "gymnasium",
@@ -101,7 +101,7 @@ def read_metrics(path: Path) -> dict[str, float]:
         rows = list(csv.DictReader(stream))
     if len(rows) != 1 or rows[0].get("severity") != "off":
         raise ValueError(f"Expected exactly one nominal-atmosphere row in {path}")
-    if set(rows[0]) != {"severity", *METRICS}:
+    if not {"severity", *METRICS} <= set(rows[0]):
         raise ValueError(f"Unexpected metric schema in {path}")
     metrics = {key: float(rows[0][key]) for key in METRICS}
     if not all(math.isfinite(value) and value >= 0 for value in metrics.values()):
@@ -119,13 +119,6 @@ def simulator_source_files(simulator: Path) -> list[Path]:
         simulator, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "fw_jsbgym"
     ).split("\0")
     return [simulator / name for name in sorted(set(names)) if name]
-
-
-def sim_profile_overrides(sim_profile: str) -> list[str]:
-    if sim_profile not in SIM_PROFILE_FCS_CHANNELS:
-        raise ValueError(f"Unknown simulator profile: {sim_profile}")
-    # The YAML default is the default profile, so only other profiles need an override.
-    return [] if sim_profile == DEFAULT_SIM_PROFILE else [f"env.jsbsim.sim_profile={sim_profile}"]
 
 
 def evaluation_log_problems(log_text: str, sim_profile: str) -> list[str]:
@@ -184,16 +177,12 @@ def main() -> None:
     )
     historical = read_metrics(archive)
     inputs = [
-        Path(__file__).resolve(),
-        repo / "reproducibility/historical_inputs.sha256",
-        checkpoint, archive, evaluation / "ppo_eval_simple.py",
+        Path(__file__).resolve(), repo / "reproducibility/historical_inputs.sha256",
+        checkpoint, archive,
+        *sorted(evaluation.glob("*.py")),
+        *sorted((package / "config").rglob("*.yaml")),
         evaluation / f"targets/{REFERENCE_SETS[args.reference_set][0]}.npy",
         evaluation / "targets/jsbsim_seeds.npy",
-        package / "config/default.yaml",
-        package / "config/rl/ppo.yaml",
-        package / "config/env/jsbsim/noatmo.yaml",
-        package / "config/env/task/mdp/no_hist_all.yaml",
-        package / "config/env/task/reward/ac_my_bohn.yaml",
     ]
     input_hashes = {os.path.relpath(path, repo.parent): sha256(path) for path in inputs}
     child_env = {
@@ -204,21 +193,33 @@ def main() -> None:
     }
     if args.device == "cpu":
         child_env["CUDA_VISIBLE_DEVICES"] = ""
+    generic_output = output / "eval/attitude_control/outputs"
+    target_file = evaluation / f"targets/{REFERENCE_SETS[args.reference_set][0]}.npy"
+    seed_file = evaluation / "targets/jsbsim_seeds.npy"
     command = [
-        sys.executable, str(evaluation / "ppo_eval_simple.py"),
-        f"model_path={checkpoint}", f"ref_file={REFERENCE_SETS[args.reference_set][0]}",
-        f"res_file=ppo_seed1_{args.reference_set}",
+        sys.executable, "-m", "fw_flightcontrol.eval.attitude_control",
+        "--config-name=evaluate", "algorithm=ppo", "checkpoints=single",
+        f"checkpoints.entries.0.path='{checkpoint}'",
+        "checkpoints.entries.0.training_seed=1",
+        f"evaluation.output={generic_output}",
+        f"evaluation.targets=[{{path:{target_file}}}]",
+        f"evaluation.simulator_seeds.file={seed_file}",
+        "evaluation.simulator_seeds.mode=file",
+        "evaluation.policy_seeds=[10]",
+        "evaluation.episodes.start=0",
+        "evaluation.episodes.count=25",
+        "evaluation.episodes.include_final_reset=true",
+        "evaluation.atmo_severities=[off]",
         "env.jsbsim.debug=false",
-        "env.jsbsim.eval_sim_options.atmosphere.severity=off",
+        f"env.jsbsim.sim_profile={args.sim_profile}",
         "hydra.run.dir=hydra", "hydra.job.chdir=false",
-        *sim_profile_overrides(args.sim_profile),
     ]
     metadata = {
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "python": sys.version,
         "executable": sys.executable,
         "platform": platform.platform(),
-        **runtime_package_info(child_env, entrypoint=Path(command[1])),
+        **runtime_package_info(child_env, entrypoint=evaluation / "__main__.py"),
         "sources": {
             source.name: {
                 "path": str(source),
@@ -243,13 +244,10 @@ def main() -> None:
         },
     }
     output.mkdir(parents=True, exist_ok=False)
-    targets = output / "eval/attitude_control/targets"
-    targets.parent.mkdir(parents=True)
-    targets.symlink_to(evaluation / "targets", target_is_directory=True)
     (output / "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
     log_path = output / "evaluation.log"
-    print(f"Running legacy evaluator; log: {log_path}", flush=True)
+    print(f"Running generic attitude evaluator; log: {log_path}", flush=True)
     with log_path.open("x") as log:
         subprocess.run(
             command, cwd=output, env={**os.environ, **child_env},
@@ -265,7 +263,7 @@ def main() -> None:
     if any(sha256(path) != simulator_hashes[str(path.relative_to(simulator))] for path in simulator_files):
         raise RuntimeError("Simulator sources changed during evaluation; results are not stable")
 
-    current = read_metrics(output / f"eval/outputs/ppo_seed1_{args.reference_set}.csv")
+    current = read_metrics(generic_output / "metrics.csv")
     historical["paper_surface_fluct"] = paper_surface_fluctuation(historical)
     current["paper_surface_fluct"] = paper_surface_fluctuation(current)
     with (output / "comparison.csv").open("x", newline="") as stream:
@@ -285,10 +283,9 @@ def main() -> None:
         f"Comparison: {output / 'comparison.csv'}"
     )
     print(f"Average RMSE: {current['avg_rmse']:.8f}; archive: {historical['avg_rmse']:.8f}")
-    channels = "includes throttle" if SIM_PROFILE_FCS_CHANNELS[args.sim_profile] == 3 else "two surfaces"
     print(
         f"Paper two-surface fluctuation: {current['paper_surface_fluct']:.8f}; "
-        f"legacy aggregate ({channels}): {current['avg_fcs_fluct']:.8f}"
+        f"archived aggregate (may include throttle): {historical['avg_fcs_fluct']:.8f}"
     )
     print("No paper-reproduction tolerance has been established; inspect the differences.")
 

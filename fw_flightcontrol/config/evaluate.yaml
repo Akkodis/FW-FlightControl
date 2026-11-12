@@ -1,0 +1,19 @@
+defaults:
+  - tdmpc2_default
+  - evaluation: default
+  - algorithm: pid
+  - targets: default
+  - checkpoints: default
+  - experiment: null
+  - _self_
+  - override /env/jsbsim: noatmo
+  - override /env/task/mdp: no_hist_all
+  - override /env/task/reward: ac_my_bohn
+  - override hydra/launcher: basic
+
+PID:
+  env_id: ACBohnNoVaIErr-v0
+
+hydra:
+  job:
+    chdir: false

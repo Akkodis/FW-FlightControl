@@ -36,8 +36,8 @@ version. The general installation instructions are to install
     - `env/reward`: Config for different rewards functions and weights.
     - `rl/`: Config relative to the RL algorithms
 - `eval/`:
-    - Evaluation scripts: `*_eval_simple.py`.
-    - `outputs/`: Evaluation results .csv.
+    - `attitude_control/`: Hydra-configured generic evaluation harness, target arrays and legacy outputs.
+    - `waypoint_tracking/`: Waypoint tracking evaluation scripts.
 - `models/`: NN model saves.
     - `icinco/`: NN models used in the ICINCO 2024 paper.
 - `train/`: Training scripts for each control algorithm: PPO, SAC and TD-MPC2 (there's also a legacy TD3 script, not working)
@@ -54,11 +54,40 @@ python train/ppo_train.py rl.PPO.env_id=ACBohnNoVaIErr-v0 rl.PPO.exp_name=gustso
 ```
 
 ### Evaluating
-To evaluate, a PPO agent:
+See the [attitude-control evaluation guide](./fw_flightcontrol/eval/attitude_control/README.md)
+for configurable targets, checkpoints, simulator/policy seeds, atmosphere
+severities, and visualization. For example, use the historical ICINCO preset
+to evaluate PID:
+
+```bash
+conda activate fw-icinco2024
+python -m fw_flightcontrol.eval.attitude_control experiment=icinco2024 \
+    'evaluation.targets=[{path:fw_flightcontrol/eval/attitude_control/targets/easy.npy}]' \
+    'evaluation.aggregation.target_groups=[]' \
+    evaluation.output=reproducibility/runs/pid-easy
 ```
-python eval/ppo_eval_simple.py rl.PPO.env_id=ACBohnNoVaIErr-v0 env/jsbsim=gustsonly model_path=models/icinco/ppo/gustonly/ppo_bohn_caps_nohist_easymedrefs_gustsonly_1_06-06_14:42:46.pt res_file=ppo_gustsonly_1 ref_file=simple_easy
+
+For a neural controller, explicitly configure the checkpoint so model
+selection stays independent from atmosphere and target choices:
+
+```bash
+python -m fw_flightcontrol.eval.attitude_control algorithm=ppo checkpoints=single \
+    "checkpoints.entries.0.path=/absolute/path/to/model.pt" \
+    'evaluation.targets=[{path:fw_flightcontrol/eval/attitude_control/targets/easy.npy}]' \
+    evaluation.output=reproducibility/runs/ppo-easy
 ```
-If you wish to have a plot view: add `env.jsbsim.render_mode=plot` and if you wish to have a FlightGear view: add `env.jsbsim.render_mode=fgear`.
+
+The harness refuses a non-empty output directory and records configuration,
+runtime versions, source revisions, and hashes. For an interactive
+visualization, set `evaluation.visualization.mode=matplotlib` and
+`evaluation.visualization.interactive=true`:
+
+```bash
+python -m fw_flightcontrol.eval.attitude_control experiment=icinco2024 \
+    evaluation.visualization.mode=matplotlib \
+    evaluation.visualization.interactive=true \
+    evaluation.output=reproducibility/runs/pid-preview
+```
 
 
 ## Citation

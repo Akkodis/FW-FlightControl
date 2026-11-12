@@ -1,0 +1,30 @@
+output: eval/attitude_control/outputs/${now:%Y-%m-%d_%H-%M-%S}
+checkpoints: ${checkpoints.entries}
+checkpoint_directory: null
+targets: ${targets.entries}
+simulator_seeds:
+  mode: generated
+  base_seed: 10
+  seeds: []
+  file: ${targets.simulator_seed_file}
+policy_seeds: [10]
+atmo_severities: ["off"]
+episodes:
+  start: 0
+  count: null
+  include_final_reset: false
+pid:
+  kp: [1.5, -2.0]
+  ki: [0.1, -0.3]
+  kd: [0.1, -0.1]
+  timestep: null
+runtime:
+  jsbsim_version: null
+visualization:
+  mode: none
+  interactive: false
+execution:
+  workers_per_gpu: 4
+  cpu_workers: 2
+aggregation:
+  target_groups: []

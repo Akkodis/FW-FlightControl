@@ -43,12 +43,17 @@
 
 ## Run the validated slice
 
-- Nominal only: **`fw-310`**, JSBSim 1.2.3, **RTX GPU via CUDA**. Do not
-  upgrade it or fall back to CPU (JSBSim physics runs on CPU).
-- Run from FlightControl, with FW-JSBGym as a sibling checkout.
+- For the ICINCO evaluation harness, activate **`fw-icinco2024`**, with
+  JSBSim 1.1.13. `fw-310` remains unchanged for work in progress and the
+  older nominal commands below.
+- Run from FlightControl, with FW-JSBGym as a sibling checkout and the
+  TD-MPC2 submodule initialized.
+- TD-MPC2 requires an **NVIDIA GPU via CUDA**; PPO and SAC can also run on
+  CPU. JSBSim physics itself runs on CPU.
 - PPO evaluator defaults to `current` and CPU: **pass
   `--sim-profile icinco2024 --device cuda`**.
-- Always use a new output directory; archives are never overwritten.
+- Always use a new output directory for archives. The generic harness refuses
+  non-empty output directories; the PPO comparison helper requires a new one.
 
 ### ICINCO evaluation environment
 
@@ -61,8 +66,7 @@ conda activate fw-icinco2024
 
 The specification pins the tested JSBSim 1.1.13, Python 3.10, PyTorch
 nightly/CUDA 12.4, TorchRL and TensorDict versions. Activation sets
-`PYTHONNOUSERSITE=1`. The neural controllers need a CUDA 12.4-compatible
-NVIDIA driver; PID runs on the CPU.
+`PYTHONNOUSERSITE=1`. CUDA evaluation needs a CUDA 12.4-compatible NVIDIA driver; PID runs on CPU.
 
 This convenient specification resolves remaining dependencies at creation
 time: it is **not the exact lock** or the original paper environment.
@@ -118,7 +122,7 @@ training workflow remains future work.
 ### Paper-era TD-MPC2 inference
 
 Pass `rl.inference_mode=icinco2024` to the
-[TD-MPC2 attitude evaluator](../fw_flightcontrol/eval/attitude_control/tdmpc2_eval_simple.py)
+[generic attitude evaluator](../fw_flightcontrol/eval/attitude_control/README.md)
 (the YAML default is `current`).
 
 - Restores policy means for planner trajectories and terminal values, NumPy
@@ -132,6 +136,40 @@ Pass `rl.inference_mode=icinco2024` to the
   which share RNG streams with training, so later training can change.
   Training actions and updates stay current: **not historical training.**
 
+### Generic attitude-control evaluation harness
+
+The generic Hydra harness is documented in the
+[attitude-control evaluation guide](../fw_flightcontrol/eval/attitude_control/README.md).
+It evaluates PID, PPO, SAC, or TD-MPC2. Configure targets, checkpoint paths,
+simulator/policy seeds, atmosphere severities and visualization separately;
+it does not infer a model from the evaluation conditions. The
+`experiment=icinco2024` preset supplies the preserved targets and seed file,
+25-episode protocol, historical PID gains and simulator profile, while
+remaining overridable.
+
+From `FW-FlightControl`:
+
+```bash
+conda activate fw-icinco2024
+python -m fw_flightcontrol.eval.attitude_control experiment=icinco2024 \
+    evaluation.output=reproducibility/runs/pid-nominal
+```
+
+For PPO, SAC or TD-MPC2, set `algorithm=...`, choose `checkpoints=single` or a
+user-defined checkpoint group, and set `checkpoints.entries.0.path` to the
+checkpoint. Select weather with an existing `env/jsbsim=...` group and the
+`evaluation.atmo_severities` list. Severity and visualization are independent.
+Outputs include per-condition metrics, checkpoint/target aggregates,
+episode records, configuration, runtime/source provenance and input hashes.
+Non-empty output directories are refused. Headless runs parallelize multiple
+checkpoints; each checkpoint's conditions remain sequential. CUDA visibility
+is controlled by the process environment.
+
+The historical validation results remain in
+[`runs/2026-11-07_icinco_harness_validation/`](./runs/2026-11-07_icinco_harness_validation/)
+(Git-ignored); see the
+[five-seed report](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#evaluation-harness-validation).
+
 ## Common preserved-checkpoint protocol
 
 | Item | Value |
@@ -141,7 +179,7 @@ Pass `rl.inference_mode=icinco2024` to the
 | Task | `ACBohnNoVaIErr-v0`, X8, 14 observations, two actions |
 | PPO actor | Two 64-unit Tanh hidden layers; deterministic mean |
 | Episodes | 25 targets × 2,000 steps; 100 Hz agent/FDM; 20 s each |
-| References | Fixed `simple_easy.npy`, `simple_medium.npy`, `simple_hard.npy` in [targets](../fw_flightcontrol/eval/attitude_control/targets/) |
+| References | Fixed `easy.npy`, `medium.npy`, `hard.npy` in [targets](../fw_flightcontrol/eval/attitude_control/targets/) |
 | Simulator seeds | `jsbsim_seeds.npy`; the 26th entry serves the evaluator's final reset |
 | Atmosphere | No wind, turbulence, gusts or randomized FDM; severity `off` |
 | PPO wrappers | Episode statistics and action clipping; no observation/reward normalization |
@@ -154,17 +192,21 @@ Pass `rl.inference_mode=icinco2024` to the
   6/7); not a pooled RMS.
 - **ActFluct (rad/sample):** mean absolute change of actual aileron/elevator
   positions (1,999 per episode), averaged over episodes and surfaces; not
-  commands. Reported as `paper_surface_fluct`; legacy exports may include
-  throttle.
+  commands. The harness reports this as `avg_fcs_fluct` and comparisons also
+  report it as `paper_surface_fluct`; legacy exports may include throttle in
+  `avg_fcs_fluct`.
+- The generic harness continues and flags out-of-bounds episodes. The dedicated
+  historical comparison helpers still reject incomplete or out-of-bounds runs
+  after evaluation because they require the complete nominal protocol.
 - **Seeds:** five-seed mean and SEM per level
   ([details](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#how-the-paper-aggregates-seeds));
   one seed is not a paper value.
 
 ## Evidence and checks
 
-- **Launchers record** invocation, commits, dirty diffs, package versions,
-  module paths, hashes, profile, Hydra config, log, metrics and comparison;
-  training adds the final model and TensorBoard curves. Distribution metadata
+- **Evaluation records** include invocation, commits, dirty diffs, package versions,
+  module paths, hashes, profile, Hydra config, log, metrics and comparison.
+  Historical training records also include model and TensorBoard curves. Distribution metadata
   is separate: in `fw-310` NumPy imports as 2.2.6 but metadata says 1.24.4.
 - **`runs/` is Git-ignored**; run paths in reports are local. Tracked:
   reports, [`ppo_diagnosis.csv`](./ppo_diagnosis.csv), [TD-MPC2 ablation](./tdmpc2_inference_ablation.csv),
@@ -180,8 +222,10 @@ Pass `rl.inference_mode=icinco2024` to the
   `tdmpc2_default.yaml`, `env/jsbsim/*.yaml`) were refreshed after their
   options gained explicit defaults that keep the earlier behavior:
   `sim_profile`, `plot_at_episode_end`, `inference_mode` and the `icinco`
-  block. Earlier runs passed these options as `+key=value`, which Hydra now
-  rejects because the keys exist; use `key=value`.
+  block. The now-retired `icinco` block was subsequently removed from
+  `default.yaml` and `tdmpc2_default.yaml`, and their hashes updated again.
+  Earlier runs passed retained options as `+key=value`, which Hydra now rejects
+  because the keys exist; use `key=value`.
 - **Revamp starting commits** (clean `main`, not paper-era): FlightControl
   `bffe6c33e7268d39811a652a83218e20ae2e9384`, JSBGym
   `571a52fe02ec3f7fc78968a076fa68a536be1455`.

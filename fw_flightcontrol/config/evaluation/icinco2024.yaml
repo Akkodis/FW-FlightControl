@@ -1,0 +1,28 @@
+defaults:
+  - default
+  - _self_
+
+simulator_seeds:
+  mode: file
+  base_seed: 10
+  seeds: []
+  file: eval/attitude_control/targets/jsbsim_seeds.npy
+policy_seeds: [10]
+atmo_severities: ["off"]
+episodes:
+  start: 0
+  count: 25
+  include_final_reset: true
+pid:
+  kp: [1.5, -2.0]
+  ki: [0.1, -0.3]
+  kd: [0.1, -0.1]
+  timestep: 0.01
+runtime:
+  jsbsim_version: "1.1.13"
+aggregation:
+  target_groups:
+    - name: nominal_refs
+      targets: [easy, medium]
+      method: mean_of_means
+      sem: mean_of_sems

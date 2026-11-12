@@ -1,0 +1,12 @@
+# @package _global_
+
+defaults:
+  - override /rl: attitude_control/ac_tdmpc2
+
+algorithm:
+  name: tdmpc2
+
+rl:
+  seed: 10
+  model_size: 5
+  inference_mode: current
