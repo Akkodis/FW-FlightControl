@@ -69,6 +69,8 @@ When multiple checkpoints are selected and visualization is disabled, each
 checkpoint runs in its own subprocess. Its policy seeds, targets, severities
 and episodes remain ordered within that process. Final reports retain the
 configured checkpoint order, regardless of completion order.
+Scheduler threads use independent configuration copies so interpolation and
+worker-result validation cannot interfere across checkpoints.
 Every worker uses the same configured target files, resolved to absolute paths
 before the worker starts; targets are not regenerated per checkpoint.
 Each target is identified in reports and aggregation groups by its configured

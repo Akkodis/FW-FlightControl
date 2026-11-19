@@ -220,6 +220,8 @@ def run_parallel(cfg, output):
     output = Path(output).resolve()
     original_cwd = get_original_cwd() if HydraConfig.initialized() else os.getcwd()
     slots = worker_slots(cfg, len(checkpoints))
+    # OmegaConf deepcopy temporarily detaches source nodes; never share them across threads.
+    slot_configs = [deepcopy(cfg) for _ in slots]
     jobs = Queue()
     for index, checkpoint in enumerate(checkpoints):
         jobs.put((index, checkpoint))
@@ -229,7 +231,7 @@ def run_parallel(cfg, output):
     active = set()
     results = {}
 
-    def run_slot(device):
+    def run_slot(device, slot_cfg):
         while not stop.is_set():
             try:
                 index, checkpoint = jobs.get_nowait()
@@ -237,7 +239,7 @@ def run_parallel(cfg, output):
                 return
             try:
                 results[index] = run_worker(
-                    cfg, output, checkpoint, device, log_lock, original_cwd,
+                    slot_cfg, output, checkpoint, device, log_lock, original_cwd,
                     active, active_lock, stop,
                 )
             except Exception:
@@ -246,7 +248,10 @@ def run_parallel(cfg, output):
 
     failures = []
     with ThreadPoolExecutor(max_workers=len(slots)) as executor:
-        futures = [executor.submit(run_slot, device) for device in slots]
+        futures = [
+            executor.submit(run_slot, device, slot_cfg)
+            for device, slot_cfg in zip(slots, slot_configs)
+        ]
         try:
             for future in futures:
                 try:

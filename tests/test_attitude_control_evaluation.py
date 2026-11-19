@@ -1,4 +1,5 @@
 from contextlib import redirect_stderr, redirect_stdout
+from copy import deepcopy
 import io
 import json
 import os
@@ -330,6 +331,34 @@ sys.modules[module.__name__] = module
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_parallel_validation_preserves_interpolated_preset_targets(self):
+        cfg = compose_config(
+            "experiment=icinco2024", "algorithm=ppo",
+            "evaluation.checkpoint_directory=models/icinco/ppo/actreg/caps",
+            "evaluation.aggregation.target_groups=[]", "evaluation.episodes.count=null",
+        )
+        prepare_checkpoint_directory(cfg)
+
+        def validate_targets(worker_cfg, output, checkpoint, *args):
+            self.assertTrue(worker_cfg is not cfg, "Each scheduler slot needs its own config")
+            for _ in range(10):
+                deepcopy(worker_cfg)
+                targets = scheduler.rollout.selected_targets(worker_cfg)
+                self.assertEqual([name for name, _, _ in targets], ["easy", "medium", "hard"])
+                for _, _, values in targets:
+                    start, end, _ = selected_simulator_seeds(worker_cfg, len(values))
+                    self.assertEqual(end - start, 25)
+            return [{"checkpoint": checkpoint.name}], []
+
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(scheduler, "worker_slots", return_value=[None] * 5), \
+                patch.object(scheduler, "run_worker", side_effect=validate_targets):
+            rows, _, stopped, remaining = scheduler.run_parallel(cfg, directory)
+        self.assertEqual(len(rows), 5)
+        self.assertFalse(stopped)
+        self.assertEqual(remaining, 0)
+        self.assertTrue(OmegaConf.is_interpolation(cfg.evaluation, "targets"))
+
     def test_slots_respect_visible_gpu_order_and_cpu_limits(self):
         cfg = compose_config()
         with patch.object(scheduler.torch.cuda, "is_available", return_value=True), \
