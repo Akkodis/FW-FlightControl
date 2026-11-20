@@ -39,6 +39,7 @@
 | [ICINCO results, five seeds](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md) | Nominal, action-regulation and disturbance results; author decisions |
 | [PPO seed-1 drift](./reports/2026-10-30_icinco_ppo_seed1_drift_diagnosis.md) | Why current code drifted, the `icinco2024` profile, June 12, 2024 source check |
 | [PPO training](./reports/2026-11-03_icinco_ppo_training.md) | CPU vs CUDA inference, fresh seed-1 training, trainer repairs |
+| [Conclusions checklist](./icinco_conclusions_checklist.md) | Phase 1b acceptance gate and seed-1 references |
 | [TD-MPC2 inference ablation](./reports/2026-11-04_icinco_tdmpc2_inference_ablation.md) | Inference differences, opt-in mode and training assessment |
 
 ## Run the validated slice
