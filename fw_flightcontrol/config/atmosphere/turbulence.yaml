@@ -1,0 +1,37 @@
+# @package env.jsbsim
+# Turbulence at every severity, on top of a light constant wind.
+train_sim_options:
+    seed: ??? # JSBSim level seed
+    atmosphere:
+        severity: null
+        variable: True
+        wind:
+            enable: True
+            rand_windspeed: False
+            wind_severity: light
+        turb:
+            enable: True
+        gust:
+            enable: False
+    rand_fdm:
+        enable: False
+    was_evaluating: False
+    eval: False
+
+eval_sim_options:
+    seed: ??? # JSBSim level seed
+    atmosphere:
+        severity: moderate # overridden per run by evaluation.atmo_severities
+        variable: False
+        wind:
+            enable: True
+            rand_windspeed: False # if True, wind_severity is ignored
+            wind_severity: light # off, light, moderate, severe, float (for custom wind speed)
+        turb:
+            enable: True
+        gust:
+            enable: False
+    rand_fdm:
+        enable: False
+    was_evaluating: True
+    eval: True

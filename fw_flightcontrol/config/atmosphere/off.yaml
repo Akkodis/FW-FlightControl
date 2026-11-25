@@ -1,0 +1,35 @@
+# @package env.jsbsim
+# No wind, turbulence or gusts.
+train_sim_options:
+    seed: ??? # JSBSim level seed
+    atmosphere:
+        severity: "off"
+        variable: False
+        wind:
+            enable: False
+            rand_continuous: False
+        turb:
+            enable: False
+        gust:
+            enable: False
+    rand_fdm:
+        enable: False
+    was_evaluating: False
+    eval: False
+
+eval_sim_options:
+    seed: ??? # JSBSim level seed
+    atmosphere:
+        severity: ["off"]
+        variable: False
+        wind:
+            enable: False
+            rand_continuous: False
+        turb:
+            enable: False
+        gust:
+            enable: False
+    rand_fdm:
+        enable: False
+    was_evaluating: True
+    eval: True

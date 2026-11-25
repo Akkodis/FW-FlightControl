@@ -1,0 +1,50 @@
+defaults:
+  - _self_
+  - task: attitude
+  - sim: default
+  - atmosphere: "off"
+  - agent: pid
+  - experiment: null
+  - override hydra/launcher: basic
+
+evaluation:
+  output: eval/attitude_control/outputs/${now:%Y-%m-%d_%H-%M-%S}
+  checkpoint_directory: null # directory holding the checkpoints to evaluate, mutually exclusive with checkpoints
+  checkpoints:
+    - name: default
+      path: null # checkpoint file to evaluate
+      training_seed: null
+  targets:
+    - path: eval/attitude_control/targets/easy.npy
+    - path: eval/attitude_control/targets/medium.npy
+    - path: eval/attitude_control/targets/hard.npy
+  simulator_seeds:
+    mode: generated
+    base_seed: 10
+    seeds: []
+    file: eval/attitude_control/targets/jsbsim_seeds.npy
+  policy_seeds: [10]
+  atmo_severities: ["off"]
+  episodes:
+    start: 0
+    count: null
+    include_final_reset: false
+  pid:
+    kp: [1.5, -2.0]
+    ki: [0.1, -0.3]
+    kd: [0.1, -0.1]
+    timestep: null
+  runtime:
+    jsbsim_version: null
+  visualization:
+    mode: none
+    interactive: false
+  execution:
+    workers_per_gpu: 4
+    cpu_workers: 2
+  aggregation:
+    target_groups: []
+
+hydra:
+  job:
+    chdir: false

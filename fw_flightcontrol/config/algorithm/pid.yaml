@@ -1,7 +1,0 @@
-# @package _global_
-
-defaults:
-  - override /rl: ppo
-
-algorithm:
-  name: pid

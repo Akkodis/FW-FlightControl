@@ -1,0 +1,7 @@
+# @package _global_
+agent:
+  name: ppo
+
+rl:
+  PPO:
+    input_arch: mlp # 'cnn' or 'mlp'

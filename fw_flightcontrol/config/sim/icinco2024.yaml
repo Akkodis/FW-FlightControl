@@ -1,0 +1,8 @@
+# @package env.jsbsim
+# ICINCO 2024 paper-era simulator profile.
+defaults:
+  - default
+  - _self_
+
+debug: false
+sim_profile: icinco2024

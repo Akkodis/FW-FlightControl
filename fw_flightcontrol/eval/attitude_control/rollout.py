@@ -95,7 +95,7 @@ class Controller:
         import fw_jsbgym  # noqa: F401 -- registers environment IDs
 
         self.cfg = cfg
-        self.algorithm = cfg.algorithm.name
+        self.algorithm = cfg.agent.name
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         torch.backends.cudnn.deterministic = True
         print(f"**** Using Device: {self.device} ****", flush=True)
@@ -113,17 +113,14 @@ class Controller:
 
             self.cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
             self.cfg.rl.seed = policy_seed
+            self.cfg.rl.task = cfg.task.name
             self.cfg.rl = parse_cfg(self.cfg.rl)
             self.env = make_env(self.cfg)
             self.state_names = [prop.get_legal_name() for prop in self.env.state_prps]
             self.env.unwrapped.telemetry_file = str(telemetry)
         else:
-            if self.algorithm == "pid":
-                env_id = cfg.PID.env_id
-            else:
-                env_id = cfg.rl[self.algorithm.upper()].env_id
             self.env = gym.make(
-                env_id, cfg_env=cfg.env, render_mode=sim.render_mode,
+                f"{cfg.task.name}-v0", cfg_env=cfg.env, render_mode=sim.render_mode,
                 telemetry_file=str(telemetry),
             )
             self.env = gym.wrappers.RecordEpisodeStatistics(self.env)
@@ -383,7 +380,7 @@ def run_condition(
 
 
 def run_evaluation(cfg, output):
-    algorithm = cfg.algorithm.name
+    algorithm = cfg.agent.name
     targets = selected_targets(cfg)
     severities = list(cfg.evaluation.atmo_severities)
     rows = []

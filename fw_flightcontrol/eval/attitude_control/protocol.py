@@ -44,7 +44,7 @@ def prepare_checkpoint_directory(cfg):
         return
     if not isinstance(directory, str) or not directory.strip():
         raise ValueError("evaluation.checkpoint_directory must be a nonempty path or null")
-    if cfg.algorithm.name == "pid":
+    if cfg.agent.name == "pid":
         raise ValueError("PID evaluations do not accept a checkpoint directory")
 
     entries = list(cfg.evaluation.checkpoints)
@@ -77,7 +77,7 @@ def prepare_checkpoint_directory(cfg):
 
 
 def validate_config(cfg):
-    algorithm = cfg.algorithm.name
+    algorithm = cfg.agent.name
     if algorithm not in ALGORITHMS:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
 

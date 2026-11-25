@@ -80,7 +80,7 @@ def input_files(cfg, simulator):
     seed_config = cfg.evaluation.simulator_seeds
     if seed_config.mode == "file":
         files.append(protocol.resolve_path(seed_config.file))
-    if cfg.algorithm.name != "pid":
+    if cfg.agent.name != "pid":
         for checkpoint in cfg.evaluation.checkpoints:
             files.append(protocol.resolve_path(checkpoint.path))
     jsbsim_path = Path(importlib.import_module("jsbsim").__file__).resolve()

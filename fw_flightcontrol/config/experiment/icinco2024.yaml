@@ -1,18 +1,26 @@
 # @package _global_
-
+# ICINCO 2024 paper protocol: 25 episodes per target, preserved simulator seeds, JSBSim 1.1.13.
 defaults:
-  - override /evaluation: icinco2024
-  - override /targets: icinco2024
-  - override /algorithm: pid
-  - override /env/jsbsim: noatmo
-  - override /env/task/mdp: no_hist_all
-  - override /env/task/reward: ac_my_bohn
+  - override /sim: icinco2024
   - _self_
 
-env:
-  jsbsim:
-    sim_profile: icinco2024
-    debug: false
+evaluation:
+  simulator_seeds:
+    mode: file
+    file: eval/attitude_control/targets/jsbsim_seeds.npy
+  episodes:
+    count: 25
+    include_final_reset: true
+  pid:
+    timestep: 0.01
+  runtime:
+    jsbsim_version: "1.1.13"
+  aggregation:
+    target_groups:
+      - name: nominal_refs
+        targets: [easy, medium]
+        method: mean_of_means
+        sem: mean_of_sems
 
 rl:
   inference_mode: icinco2024

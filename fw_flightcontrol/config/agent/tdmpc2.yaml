@@ -1,0 +1,88 @@
+# @package _global_
+# TD-MPC2 inference settings. The submodule's parse_cfg() and make_env() read this block
+# as cfg.rl, so every key it assigns or reads must be declared here.
+agent:
+  name: tdmpc2
+
+rl:
+  # environment (task is filled from task.name by the evaluation harness)
+  task: ???
+  obs: state
+  episodic: false
+  render_mode: none
+
+  # inference
+  inference_mode: current # current, or icinco2024 for the ICINCO 2024 paper-era evaluation inference
+  im_traj: false
+  dec_obs: false
+
+  # training hyperparameters read when building the agent
+  lr: 3e-4
+  enc_lr_scale: 0.3
+  tau: 0.01
+  discount: ??? # if unspecified, computed from heuristic
+  discount_denom: 5
+  discount_min: 0.95
+  discount_max: 0.995
+
+  # CAPS
+  use_caps: false
+  ts_coef: 0.0
+
+  # planning
+  model_free: false
+  mpc: true
+  iterations: 6
+  num_samples: 512
+  num_elites: 64
+  num_pi_trajs: 24
+  horizon: 3
+  min_std: 0.05
+  max_std: 2
+  temperature: 0.5
+  mppi_actfluct: false
+
+  # actor
+  log_std_min: -10
+  log_std_max: 2
+  entropy_coef: 1e-4
+
+  # critic
+  num_bins: 101
+  vmin: -10
+  vmax: +10
+
+  # architecture
+  model_size: 5
+  num_enc_layers: 2
+  enc_dim: 256
+  latent_dim: 512
+  num_channels: 32
+  mlp_dim: 512
+  task_dim: 96
+  num_q: 5
+  dropout: 0.01
+  simnorm_dim: 8
+  use_enc: true
+  use_decoder: false
+  gaussian_dyn: false
+
+  # misc
+  compile: false
+  save_video: false
+  seed: 10 # overwritten with the evaluation policy seed
+  exp_name: default
+
+  # filled in by parse_cfg() and the environment
+  work_dir: ???
+  task_title: ???
+  multitask: ???
+  tasks: ???
+  obs_shape: ???
+  action_dim: ???
+  episode_length: ???
+  obs_shapes: ???
+  action_dims: ???
+  episode_lengths: ???
+  seed_steps: ???
+  bin_size: ???

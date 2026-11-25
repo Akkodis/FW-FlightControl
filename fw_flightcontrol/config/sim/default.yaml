@@ -1,0 +1,10 @@
+# @package env.jsbsim
+# JSBSim environment settings shared by every atmosphere condition.
+fdm_freq: 100.0 # 120 Hz being the default JSBSim freq
+agent_freq: 100.0
+episode_length_s: 20.0
+viz_time_factor: 50.0
+debug: True
+render_mode: "none"
+plot_at_episode_end: True # with plot or FlightGear rendering, open a static telemetry plot after each episode
+sim_profile: current # simulator behavior: current, or icinco2024 for the ICINCO 2024 paper-era profile

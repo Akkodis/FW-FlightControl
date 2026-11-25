@@ -18,7 +18,7 @@ def run(cfg):
         cfg = deepcopy(cfg)
     protocol.prepare_checkpoint_directory(cfg)
     protocol.validate_config(cfg)
-    algorithm = cfg.algorithm.name
+    algorithm = cfg.agent.name
     runtime = runtime_info(algorithm)
     actual_jsbsim = runtime["packages"]["jsbsim"]["imported_version"]
     expected_jsbsim = cfg.evaluation.runtime.jsbsim_version
@@ -92,7 +92,7 @@ def run(cfg):
     return result
 
 
-@hydra.main(version_base=None, config_path="../../config", config_name="evaluate")
+@hydra.main(version_base=None, config_path="../../config", config_name="eval")
 def main(cfg: DictConfig):
     run(cfg)
 

@@ -1,0 +1,8 @@
+# @package _global_
+# Attitude-control task: roll/pitch tracking with the Bohn-style reward.
+defaults:
+  - /env/task/mdp: no_hist_all
+  - /env/task/reward: ac_my_bohn
+
+task:
+  name: ACBohnNoVaIErr # gym id is "<name>-v0"

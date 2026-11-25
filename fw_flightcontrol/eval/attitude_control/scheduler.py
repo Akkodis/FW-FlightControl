@@ -96,7 +96,7 @@ def validate_worker_result(cfg, checkpoint, result):
         ):
             raise ValueError("Missing result fields")
         if any(
-            row["algorithm"] != cfg.algorithm.name
+            row["algorithm"] != cfg.agent.name
             or row["training_seed"] != checkpoint.get("training_seed")
             for row in (*rows, *episodes)
         ):

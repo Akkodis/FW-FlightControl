@@ -1,7 +1,0 @@
-# @package _global_
-
-defaults:
-  - override /rl: sac
-
-algorithm:
-  name: sac
