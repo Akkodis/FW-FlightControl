@@ -198,9 +198,9 @@ def main() -> None:
     seed_file = evaluation / "targets/jsbsim_seeds.npy"
     command = [
         sys.executable, "-m", "fw_flightcontrol.eval.attitude_control",
-        "--config-name=evaluate", "algorithm=ppo", "checkpoints=single",
-        f"checkpoints.entries.0.path='{checkpoint}'",
-        "checkpoints.entries.0.training_seed=1",
+        "--config-name=eval", "agent=ppo",
+        f"evaluation.checkpoints.0.path='{checkpoint}'",
+        "evaluation.checkpoints.0.training_seed=1",
         f"evaluation.output={generic_output}",
         f"evaluation.targets=[{{path:{target_file}}}]",
         f"evaluation.simulator_seeds.file={seed_file}",

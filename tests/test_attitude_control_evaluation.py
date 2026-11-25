@@ -43,7 +43,7 @@ CONFIG_DIR = PACKAGE / "config"
 
 def compose_config(*overrides):
     with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR)):
-        return compose(config_name="evaluate", overrides=list(overrides))
+        return compose(config_name="eval", overrides=list(overrides))
 
 
 def metric_row(checkpoint, training_seed, value):
@@ -152,7 +152,7 @@ class ConfigTests(unittest.TestCase):
             (root / "nested").mkdir()
             (root / "nested" / "ignored.pt").write_bytes(b"checkpoint")
             cfg = compose_config(
-                "algorithm=ppo",
+                "agent=ppo",
                 f"evaluation.checkpoint_directory={root}",
                 "evaluation.targets=[{path:/tmp/targets.npy}]",
             )
@@ -173,15 +173,15 @@ class ConfigTests(unittest.TestCase):
             file.write_bytes(b"checkpoint")
             target = "evaluation.targets=[{path:/tmp/targets.npy}]"
             cases = (
-                (("algorithm=ppo", f"evaluation.checkpoint_directory={root / 'missing'}", target),
+                (("agent=ppo", f"evaluation.checkpoint_directory={root / 'missing'}", target),
                  FileNotFoundError),
-                (("algorithm=ppo", f"evaluation.checkpoint_directory={file}", target),
+                (("agent=ppo", f"evaluation.checkpoint_directory={file}", target),
                  NotADirectoryError),
-                (("algorithm=ppo", f"evaluation.checkpoint_directory={root}", target),
+                (("agent=ppo", f"evaluation.checkpoint_directory={root}", target),
                  ValueError),
                 ((f"evaluation.checkpoint_directory={root}", target), ValueError),
-                (("algorithm=ppo", f"evaluation.checkpoint_directory={root}",
-                  "checkpoints=single", "checkpoints.entries.0.path=/tmp/model.pt", target),
+                (("agent=ppo", f"evaluation.checkpoint_directory={root}",
+                  "evaluation.checkpoints.0.path=/tmp/model.pt", target),
                  ValueError),
             )
             for overrides, error in cases:
@@ -196,18 +196,26 @@ class ConfigTests(unittest.TestCase):
                 cfg = compose_config(*overrides)
                 self.assertEqual(list(cfg.evaluation.policy_seeds), [10])
 
-    def test_algorithm_groups_compose_with_their_own_rl_configs(self):
-        expected_rl_group = {
-            "pid": "PPO",
-            "ppo": "PPO",
-            "sac": "SAC",
-            "tdmpc2": "task",
-        }
-        for algorithm, first_key in expected_rl_group.items():
-            with self.subTest(algorithm=algorithm):
-                cfg = compose_config(f"algorithm={algorithm}")
-                self.assertEqual(cfg.algorithm.name, algorithm)
-                self.assertIn(first_key, cfg.rl)
+    def test_agent_groups_compose_with_their_own_settings(self):
+        expected_rl_key = {"pid": None, "ppo": "PPO", "sac": None, "tdmpc2": "obs"}
+        for agent, key in expected_rl_key.items():
+            with self.subTest(agent=agent):
+                cfg = compose_config(f"agent={agent}")
+                self.assertEqual(cfg.agent.name, agent)
+                self.assertEqual(cfg.task.name, "ACBohnNoVaIErr")
+                if key is None:
+                    self.assertNotIn("rl", cfg)
+                else:
+                    self.assertIn(key, cfg.rl)
+
+    def test_atmosphere_groups_compose_one_condition_each(self):
+        for atmosphere, flags in {
+            "off": (False, False), "turbulence": (True, False), "gusts": (False, True),
+        }.items():
+            with self.subTest(atmosphere=atmosphere):
+                options = compose_config(f"atmosphere={atmosphere}").env.jsbsim.eval_sim_options
+                self.assertEqual((options.atmosphere.turb.enable, options.atmosphere.gust.enable),
+                                 flags)
 
     def test_icinco_preset_is_a_configurable_historical_default(self):
         cfg = compose_config("experiment=icinco2024")
@@ -228,9 +236,8 @@ class ConfigTests(unittest.TestCase):
 
     def test_custom_checkpoints_and_visualization_compose_independently(self):
         cfg = compose_config(
-            "algorithm=ppo",
-            "checkpoints=single",
-            "checkpoints.entries.0.path=/tmp/custom-checkpoint.pt",
+            "agent=ppo",
+                        "evaluation.checkpoints.0.path=/tmp/custom-checkpoint.pt",
             "evaluation.targets=[{path:/tmp/custom-targets.npy}]",
             "evaluation.atmo_severities=[light,severe]",
             "evaluation.visualization.mode=matplotlib",
@@ -331,9 +338,9 @@ sys.modules[module.__name__] = module
 
 
 class SchedulerTests(unittest.TestCase):
-    def test_parallel_validation_preserves_interpolated_preset_targets(self):
+    def test_parallel_validation_preserves_preset_targets(self):
         cfg = compose_config(
-            "experiment=icinco2024", "algorithm=ppo",
+            "experiment=icinco2024", "agent=ppo",
             "evaluation.checkpoint_directory=models/icinco/ppo/actreg/caps",
             "evaluation.aggregation.target_groups=[]", "evaluation.episodes.count=null",
         )
@@ -357,7 +364,6 @@ class SchedulerTests(unittest.TestCase):
         self.assertEqual(len(rows), 5)
         self.assertFalse(stopped)
         self.assertEqual(remaining, 0)
-        self.assertTrue(OmegaConf.is_interpolation(cfg.evaluation, "targets"))
 
     def test_slots_respect_visible_gpu_order_and_cpu_limits(self):
         cfg = compose_config()
@@ -391,7 +397,7 @@ class SchedulerTests(unittest.TestCase):
             target.symlink_to(target_data)
         target_override = os.path.relpath(target, Path.cwd()) if relative_target else target
         cfg = compose_config(
-            "algorithm=ppo", f"evaluation.checkpoint_directory={models}",
+            "agent=ppo", f"evaluation.checkpoint_directory={models}",
             f"evaluation.targets=[{{path:{target_override}}}]",
             f"evaluation.output={root / 'output'}",
         )
@@ -508,7 +514,7 @@ class SchedulerTests(unittest.TestCase):
                 for name in names:
                     (models / name).write_bytes(b"checkpoint")
                 cfg = compose_config(
-                    "algorithm=ppo", f"evaluation.checkpoint_directory={models}",
+                    "agent=ppo", f"evaluation.checkpoint_directory={models}",
                     "evaluation.targets=[{path:unused.npy}]",
                     f"evaluation.visualization.mode={mode}",
                     f"evaluation.output={root / 'output'}",
@@ -635,7 +641,7 @@ class RealGpuIntegrationTests(unittest.TestCase):
             output = root / "output"
             command = [
                 sys.executable, "-u", "-m", "fw_flightcontrol.eval.attitude_control",
-                "experiment=icinco2024", "algorithm=ppo",
+                "experiment=icinco2024", "agent=ppo",
                 f"evaluation.checkpoint_directory={checkpoints}",
                 f"evaluation.targets=[{{path:{json.dumps(str(target))}}}]",
                 "evaluation.aggregation.target_groups=[]", "evaluation.episodes.count=1",
@@ -694,7 +700,7 @@ class RolloutTests(unittest.TestCase):
             target = root / "targets.npy"
             np.save(target, np.zeros((1, 2), dtype=np.float32))
             cfg = compose_config(
-                "algorithm=ppo",
+                "agent=ppo",
                 f"evaluation.checkpoint_directory={models}",
                 f"evaluation.targets=[{{path:{target}}}]",
             )
@@ -728,7 +734,7 @@ class RolloutTests(unittest.TestCase):
             np.save(target, np.zeros((1, 2), dtype=np.float32))
             output = root / "output"
             cfg = compose_config(
-                "algorithm=ppo",
+                "agent=ppo",
                 f"evaluation.checkpoint_directory={models}",
                 f"evaluation.targets=[{{path:{target}}}]",
                 f"evaluation.output={output}",
@@ -770,7 +776,7 @@ class RolloutTests(unittest.TestCase):
             target = root / "targets.npy"
             np.save(target, np.zeros((1, 2), dtype=np.float32))
             cfg = compose_config(
-                "algorithm=ppo",
+                "agent=ppo",
                 f"evaluation.checkpoint_directory={models}",
                 f"evaluation.targets=[{{path:{target}}}]",
                 f"evaluation.output={root / 'output'}",
@@ -900,7 +906,7 @@ class RolloutTests(unittest.TestCase):
         self.assertEqual(remaining, 0)
 
     def test_tdmpc2_parser_uses_the_selected_policy_seed(self):
-        cfg = compose_config("algorithm=tdmpc2", "rl.seed=999")
+        cfg = compose_config("agent=tdmpc2", "rl.seed=999")
         submodule = str(PACKAGE / "agents/tdmpc2/tdmpc2")
         fake_env = SimpleNamespace(state_prps=[], unwrapped=SimpleNamespace())
         with tempfile.TemporaryDirectory() as directory, \
@@ -921,8 +927,7 @@ class RolloutTests(unittest.TestCase):
             checkpoint = Path(directory) / "model.pt"
             checkpoint.touch()
             cfg = compose_config(
-                "algorithm=tdmpc2", "checkpoints=single",
-                f"checkpoints.entries.0.path={checkpoint}",
+                "agent=tdmpc2",                 f"evaluation.checkpoints.0.path={checkpoint}",
                 "evaluation.policy_seeds=[10,17]",
                 "evaluation.episodes.count=1",
                 "evaluation.simulator_seeds.mode=values",

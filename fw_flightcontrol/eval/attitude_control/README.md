@@ -6,8 +6,12 @@ severities, and visualization are configured independently. Waypoint tracking
 is outside this harness.
 
 Run commands from `FW-FlightControl` in an environment that can import
-FW-JSBGym. The default configuration is intentionally generic and has no
-targets; add target and checkpoint entries for a run.
+FW-JSBGym. The root config is `config/eval.yaml`; it composes the groups
+`task` (attitude control), `sim` (JSBSim settings), `atmosphere`
+(`off`, `turbulence`, `gusts`, `wind`) and `agent` (`pid`, `ppo`, `sac`,
+`tdmpc2`), plus an optional `experiment` preset. Every option the harness reads
+is declared with a default in these files. By default it evaluates the easy,
+medium and hard targets; add a checkpoint for a neural agent.
 
 The entry point's `run()` function orchestrates evaluation; `worker.py` provides
 runtime, provenance, output helpers, and the internal checkpoint worker.
@@ -17,7 +21,7 @@ runtime, provenance, output helpers, and the internal checkpoint worker.
 For example, evaluate PID on a custom array:
 
 ```bash
-python -m fw_flightcontrol.eval.attitude_control algorithm=pid \
+python -m fw_flightcontrol.eval.attitude_control agent=pid \
   'evaluation.targets=[{path:fw_flightcontrol/eval/attitude_control/targets/easy.npy}]' \
   evaluation.atmo_severities='[off]' \
   evaluation.output=reproducibility/runs/pid-easy
@@ -32,23 +36,23 @@ selection does not depend on target names, atmosphere settings, algorithm
 variants, or severity:
 
 ```bash
-python -m fw_flightcontrol.eval.attitude_control algorithm=ppo checkpoints=single \
-  "checkpoints.entries.0.path=/absolute/path/to/model.pt" \
-  checkpoints.entries.0.training_seed=42 \
+python -m fw_flightcontrol.eval.attitude_control agent=ppo \
+  "evaluation.checkpoints.0.path=/absolute/path/to/model.pt" \
+  evaluation.checkpoints.0.training_seed=42 \
   'evaluation.targets=[{path:/absolute/path/to/targets.npy}]' \
   evaluation.policy_seeds='[10]' \
   evaluation.output=reproducibility/runs/ppo-custom
 ```
 
-The `single` checkpoint group is a starter entry; use a user-owned Hydra
-config group or override `evaluation.checkpoints` to define a list. A
-checkpoint entry has `name`, `path`, and optional `training_seed` fields.
+`evaluation.checkpoints` holds a starter entry with a null path; override its
+fields as above or replace the whole list. A checkpoint entry has `name`,
+`path`, and optional `training_seed` fields.
 PID does not require a checkpoint.
 
 To evaluate all `.pt` and `.pth` checkpoints directly inside a directory:
 
 ```bash
-python -m fw_flightcontrol.eval.attitude_control algorithm=ppo \
+python -m fw_flightcontrol.eval.attitude_control agent=ppo \
   evaluation.checkpoint_directory=fw_flightcontrol/models/icinco/ppo/actreg/caps \
   'evaluation.targets=[{path:fw_flightcontrol/eval/attitude_control/targets/easy.npy}]' \
   evaluation.episodes.count=1 \
@@ -105,14 +109,14 @@ python -m fw_flightcontrol.eval.attitude_control experiment=icinco2024 \
 ```
 
 To select a neural model, supply the algorithm and checkpoint as above. To
-evaluate turbulence or gusts, choose the corresponding existing JSBSim config
-and severity list, for example:
+evaluate turbulence or gusts, choose the corresponding `atmosphere` group
+atmosphere group and severity list, for example:
 
 ```bash
 python -m fw_flightcontrol.eval.attitude_control experiment=icinco2024 \
-  algorithm=ppo checkpoints=single \
-  "checkpoints.entries.0.path=/absolute/path/to/model.pt" \
-  env/jsbsim=turbonly \
+  agent=ppo \
+  "evaluation.checkpoints.0.path=/absolute/path/to/model.pt" \
+  atmosphere=turbulence \
   'evaluation.atmo_severities=[off,light,moderate,severe]' \
   evaluation.output=reproducibility/runs/icinco-ppo-turbulence
 ```

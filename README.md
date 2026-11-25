@@ -71,8 +71,8 @@ For a neural controller, explicitly configure the checkpoint so model
 selection stays independent from atmosphere and target choices:
 
 ```bash
-python -m fw_flightcontrol.eval.attitude_control algorithm=ppo checkpoints=single \
-    "checkpoints.entries.0.path=/absolute/path/to/model.pt" \
+python -m fw_flightcontrol.eval.attitude_control agent=ppo \
+    "evaluation.checkpoints.0.path=/absolute/path/to/model.pt" \
     'evaluation.targets=[{path:fw_flightcontrol/eval/attitude_control/targets/easy.npy}]' \
     evaluation.output=reproducibility/runs/ppo-easy
 ```

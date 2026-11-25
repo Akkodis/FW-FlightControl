@@ -156,9 +156,9 @@ python -m fw_flightcontrol.eval.attitude_control experiment=icinco2024 \
     evaluation.output=reproducibility/runs/pid-nominal
 ```
 
-For PPO, SAC or TD-MPC2, set `algorithm=...`, choose `checkpoints=single` or a
-user-defined checkpoint group, and set `checkpoints.entries.0.path` to the
-checkpoint. Select weather with an existing `env/jsbsim=...` group and the
+For PPO, SAC or TD-MPC2, set `agent=...` and set `evaluation.checkpoints.0.path`
+to the checkpoint. Select weather with the `atmosphere=...` group
+(`off`, `turbulence`, `gusts`, `wind`) and the
 `evaluation.atmo_severities` list. Severity and visualization are independent.
 Outputs include per-condition metrics, checkpoint/target aggregates,
 episode records, configuration, runtime/source provenance and input hashes.
