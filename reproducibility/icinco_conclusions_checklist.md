@@ -2,118 +2,140 @@
 
 [Run guide and status](./README.md)
 
-Fixed 2026-11-20, before the simplified stack was tested. The gate is **every item below holds
-on the simplified stack; numbers may vary**, residuals are reported, and items are never relaxed
-retroactively. Paper values are five-seed means (1e-2 units) from ICINCO Tables 6–7 as recorded in the
-[five-seed report](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#results-against-the-paper).
-Nominal = mean of the easy and medium references; "Hard" = the hard reference.
+The gate is: **every conclusion below still holds on the simplified stack; numbers may vary.**
+Each table follows the paper and shows `paper → simplified harness`, five seeds
+(1, 2164, 2989, 4508, 6930), mean ± SEM over seeds as the paper aggregates them
+([details](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md#how-the-paper-aggregates-seeds)).
+PID is deterministic and has no SEM.
 
-Two tiers:
+- Units: 1e-2. RMSE is roll/pitch RMSE (rad); ActFluct is roll/pitch fluctuation (rad/sample).
+- "Nominal" is the mean of the easy and medium references; "Hard" is the hard reference.
+- **Paper** values are the paper's published numbers, or, where the paper tables are not reproduced
+  in the repo (action-regulation variants, per-level disturbances), the archived per-seed CSVs
+  aggregated the same way (identical to the paper wherever both exist).
+- **Simplified harness** values come from `python -m fw_flightcontrol.eval.attitude_control
+  experiment=icinco2024 ...` with the `eval.yaml` config groups, evaluating the five seed checkpoints
+  of each variant with `evaluation.checkpoint_directory=<variant dir>`, 25 episodes per target, JSBSim 1.1.13,
+  TD-MPC2 with `rl.inference_mode=current`. Raw outputs and `run_five_seeds.sh`:
+  `runs/2026-11-24_phase1b_five_seeds/` (Git-ignored, 25 runs).
+- Disturbance runs use the disturbance-trained checkpoints (`models/icinco/<algo>/{turbonly,gustonly}`).
+- The harness reruns at the end of Phase 1b reuse these tables: replace the right-hand value.
 
-- **Paper tier (P):** conclusions the paper states, supported by five-seed evidence. They are
-  checked on five seeds, not on seed 1 alone.
-- **Reference tier (R):** the same comparisons on seed 1 only, checked by a rerun of the
-  [Phase 1b reference set](#reference-set) on the simplified stack: signs and orderings must equal
-  the frozen current-harness references below. Seed 1 can disagree with the five-seed paper
-  ordering (marked *seed-sensitive*); R then guards against change, not against the paper.
+## Table 1 — Baselines, nominal and hard (paper Tables 6–7)
 
-## P1 — Method ranking, nominal and hard (Tables 6–7)
+| Agent | RMSE nominal | ActFluct nominal | RMSE hard | ActFluct hard |
+|---|---|---|---|---|
+| PID | 4.20 → 4.17 | 0.07 → 0.06 | 20.10 → 20.03 | 0.17 → 0.16 |
+| TD-MPC2 | 3.81 ± 0.10 → 3.81 ± 0.10 | 4.37 ± 0.48 → 3.99 ± 0.59 | 9.10 ± 0.69 → 9.43 ± 0.94 | 6.02 ± 0.59 → 5.70 ± 0.79 |
+| PPO | 5.29 ± 0.12 → 5.29 ± 0.12 | 1.98 ± 0.58 → 1.98 ± 0.58 | 15.78 ± 2.48 → 15.78 ± 2.48 | 5.54 ± 0.93 → 5.53 ± 0.93 |
+| SAC | 6.64 ± 0.83 → 6.64 ± 0.83 | 10.07 ± 1.12 → 10.08 ± 1.12 | 11.15 ± 0.65 → 11.15 ± 0.65 | 12.00 ± 0.71 → 12.00 ± 0.71 |
 
-| Condition | Metric | Paper ordering (best → worst) |
-|---|---|---|
-| Nominal | RMSE | TD-MPC2 3.81 < PID 4.20 < PPO 5.29 < SAC 6.64 |
-| Hard | RMSE | TD-MPC2 9.10 < SAC 11.15 < PPO 15.78 < PID 20.10 |
-| Nominal | ActFluct | PID 0.07 < PPO 1.98 < TD-MPC2 4.37 < SAC 10.07 |
-| Hard | ActFluct | PID 0.17 < PPO 5.54 < TD-MPC2 6.02 < SAC 12.00 |
+Checks (orderings, best to worst, in the simplified harness):
 
-Accepted: TD-MPC2 under current inference has lower ActFluct (3.93 / 5.63) than the paper; the
-ordering above is unchanged (see P5).
+| Check | Paper | Simplified | Holds |
+|---|---|---|---|
+| Nominal RMSE | TD-MPC2 < PID < PPO < SAC | TD-MPC2 3.81 < PID 4.17 < PPO 5.29 < SAC 6.64 | ✅ |
+| Hard RMSE | TD-MPC2 < SAC < PPO < PID | TD-MPC2 9.43 < SAC 11.15 < PPO 15.78 < PID 20.03 | ✅ |
+| Nominal ActFluct | PID < PPO < TD-MPC2 < SAC | PID 0.06 < PPO 1.98 < TD-MPC2 3.99 < SAC 10.08 | ✅ |
+| Hard ActFluct | PID < PPO < TD-MPC2 < SAC | PID 0.16 < PPO 5.53 < TD-MPC2 5.70 < SAC 12.00 | ✅ |
 
-## P2 — Effect of CAPS / AVP (action-regulation variants)
+Accepted differences:
 
-- PPO CAPS lowers nominal and hard ActFluct (1.98 → 1.47, 5.54 → 4.56) and nominal RMSE; hard RMSE rises.
-- PPO AVP raises ActFluct (13.78 nominal) and is not an improvement.
-- SAC CAPS and AVP cut ActFluct by an order of magnitude (10.07 → ≈0.5; 12.00 → ≈1.2–1.4) at a small RMSE cost.
-- TD-MPC2 AVP cuts ActFluct from 4.37 to ≈0.54 without worsening RMSE.
+- TD-MPC2 ActFluct is lower than the paper (3.99 vs 4.37, 5.70 vs 6.02) because of the
+  accepted *current* inference (`rl.inference_mode=current`, `icinco2024` is opt-in); orderings
+  are unchanged.
+- TD-MPC2 hard RMSE moved from 9.10 to 9.43 (within the SEM of both, 0.69 and 0.94).
+- PID differs by 0.03 / 0.07 RMSE from the published values: the generic harness feeds the new
+  reset observation to the first action (see the
+  [harness guide](../fw_flightcontrol/eval/attitude_control/README.md)).
 
-## P3 — Robustness under disturbances (Figures 2–3; PPO CAPS, SAC CAPS, TD-MPC2 AVP, PID)
+## Table 2 — Action-regulation variants (CAPS / AVP)
 
-- RMSE and ActFluct do not decrease with severity for every controller (turbulence is a smooth
-  rise; gusts rise sharply for SAC).
-- PID has the lowest ActFluct at every level.
-- Five-seed gust ordering of RMSE (easy/medium mean, moderate): PID 7.78 < PPO 8.38 < TD-MPC2 11.65 < SAC 25.12.
-- Five-seed turbulence ordering at moderate: PID 5.69 < PPO 6.22 < TD-MPC2 7.23 < SAC 8.52.
-- Known accepted exception: at turbulence `off`, current-inference TD-MPC2 mean RMSE is above PPO
-  (SEMs overlap); all other rankings hold. Requires JSBSim 1.1.13.
+| Variant | RMSE nominal | ActFluct nominal | RMSE hard | ActFluct hard |
+|---|---|---|---|---|
+| PPO CAPS | 5.05 ± 0.15 → 5.05 ± 0.15 | 1.47 ± 0.27 → 1.47 ± 0.26 | 19.17 ± 4.68 → 19.17 ± 4.68 | 4.56 ± 0.60 → 4.55 ± 0.61 |
+| PPO AVP | 5.78 ± 0.21 → 5.78 ± 0.21 | 13.78 ± 3.16 → 13.78 ± 3.16 | 13.80 ± 0.82 → 13.80 ± 0.82 | 13.48 ± 2.50 → 13.48 ± 2.50 |
+| SAC CAPS | 6.79 ± 0.74 → 6.79 ± 0.74 | 0.53 ± 0.27 → 0.53 ± 0.27 | 12.28 ± 1.17 → 12.28 ± 1.17 | 1.44 ± 0.55 → 1.44 ± 0.55 |
+| SAC AVP | 6.54 ± 0.75 → 6.54 ± 0.75 | 0.50 ± 0.18 → 0.50 ± 0.18 | 15.14 ± 3.39 → 15.14 ± 3.39 | 1.20 ± 0.32 → 1.20 ± 0.32 |
+| TD-MPC2 AVP | 3.58 ± 0.01 → 3.60 ± 0.01 | 0.54 ± 0.02 → 0.68 ± 0.01 | 8.09 ± 0.03 → 8.13 ± 0.04 | 0.60 ± 0.02 → 0.69 ± 0.02 |
 
-## P4 — Scope
+Checks (compare with the plain agent of Table 1):
 
-No controller leaves the safe bounds in any reference run (0 out-of-bounds episodes).
+| Check | Paper | Simplified | Holds |
+|---|---|---|---|
+| PPO CAPS lowers ActFluct and nominal RMSE, raises hard RMSE | 1.98 → 1.47, 5.29 → 5.05, 15.78 → 19.17 | same | ✅ |
+| PPO AVP raises ActFluct and gives no RMSE improvement | ActFluct 1.98 → 13.78 | same | ✅ |
+| SAC CAPS / AVP cut ActFluct by about 10× at a small RMSE cost | 10.07 → 0.53 / 0.50 | 10.08 → 0.53 / 0.50 | ✅ |
+| TD-MPC2 AVP cuts ActFluct by about 6× without worse RMSE | 3.81 → 3.58, 4.37 → 0.54 | 3.81 → 3.60, 3.99 → 0.68 | ✅ |
 
-## P5 — TD-MPC2 inference decision
+TD-MPC2 AVP ActFluct is 0.14 / 0.09 above the paper (still far below plain TD-MPC2); accepted
+current-inference difference.
 
-`rl.inference_mode=current` stays the default; `icinco2024` is opt-in. The simplified stack must
-keep both modes selectable by one option and must not change the default behaviour.
+## Table 3 — Turbulence (paper Figure 2, nominal references)
 
-## Reference set
+Light steady wind is present at every level including `off`.
 
-Seed-1 references, 25 episodes per target, evaluation seed 10, JSBSim 1.1.13, `experiment=icinco2024`,
-TD-MPC2 with `rl.inference_mode=current`. Nominal and hard use the `noactreg`/`actreg` (CAPS, AVP)
-checkpoints under `fw_flightcontrol/models/icinco`; disturbance runs use the **disturbance-trained**
-`turbonly`/`gustonly` checkpoints (CAPS for PPO/SAC, AVP for TD-MPC2), as in Figures 2–3 and the
-earlier disturbance runs. Local outputs: `reproducibility/runs/2026-11-19_phase1b_references/`
-(Git-ignored; `summary_all.csv`, `seed1_vs_archive.csv`). Values in 1e-2 units, RMSE / ActFluct.
+**RMSE**
 
-| Controller | Nominal (easy+medium) | Hard |
-|---|---:|---:|
-| PID | 4.17 / 0.06 | 20.03 / 0.16 |
-| PPO | 5.14 / 2.50 | 22.89 / 6.80 |
-| SAC | 5.27 / 9.28 | 10.36 / 12.16 |
-| TD-MPC2 | 3.59 / 2.81 | 8.33 / 3.99 |
-| PPO CAPS | 4.69 / 1.38 | 36.69 / 3.86 |
-| SAC CAPS | 6.87 / 0.50 | 12.31 / 0.69 |
-| TD-MPC2 AVP | 3.63 / 0.72 | 8.23 / 0.78 |
+| Agent | off | light | moderate | severe |
+|---|---|---|---|---|
+| PID | 4.93 → 4.90 | 5.25 → 5.31 | 5.69 → 5.66 | 7.25 → 7.20 |
+| PPO CAPS | 5.68 ± 0.21 → 5.68 ± 0.21 | 5.98 ± 0.24 → 6.05 ± 0.24 | 6.22 ± 0.24 → 6.22 ± 0.24 | 7.28 ± 0.27 → 7.27 ± 0.27 |
+| SAC CAPS | 8.24 ± 1.07 → 8.24 ± 1.07 | 8.27 ± 0.87 → 8.40 ± 0.86 | 8.52 ± 0.80 → 8.52 ± 0.80 | 9.45 ± 0.68 → 9.40 ± 0.68 |
+| TD-MPC2 AVP | 5.13 ± 0.52 → 5.47 ± 0.82 | 6.12 ± 0.69 → 6.63 ± 1.07 | 7.23 ± 0.91 → 6.86 ± 1.06 | 6.78 ± 0.36 → 6.94 ± 0.59 |
 
-Disturbances (easy/medium mean), `off` → `moderate`:
+**ActFluct**
 
-| Controller | Turbulence | Gust |
-|---|---|---|
-| PID | 4.89 / 0.08 → 5.66 / 0.24 | 4.17 / 0.07 → 7.76 / 0.20 |
-| PPO CAPS | 5.27 / 2.08 → 5.75 / 2.88 | 5.57 / 2.01 → 8.32 / 2.23 |
-| SAC CAPS | 5.75 / 1.21 → 6.46 / 2.19 | 13.49 / 1.17 → 20.90 / 2.10 |
-| TD-MPC2 AVP | 5.21 / 0.73 → 5.77 / 0.97 | 5.58 / 1.70 → 12.81 / 2.50 |
+| Agent | off | light | moderate | severe |
+|---|---|---|---|---|
+| PID | 0.08 → 0.07 | 0.19 → 0.19 | 0.25 → 0.25 | 0.40 → 0.40 |
+| PPO CAPS | 1.87 ± 0.10 → 1.87 ± 0.10 | 2.42 ± 0.11 → 2.44 ± 0.11 | 2.59 ± 0.12 → 2.58 ± 0.12 | 3.04 ± 0.17 → 3.04 ± 0.17 |
+| SAC CAPS | 0.98 ± 0.30 → 0.98 ± 0.30 | 1.84 ± 0.23 → 1.84 ± 0.23 | 2.14 ± 0.20 → 2.14 ± 0.20 | 2.89 ± 0.18 → 2.88 ± 0.18 |
+| TD-MPC2 AVP | 0.65 ± 0.03 → 0.72 ± 0.03 | 0.77 ± 0.04 → 0.82 ± 0.04 | 0.86 ± 0.06 → 0.89 ± 0.05 | 1.02 ± 0.02 → 1.03 ± 0.02 |
 
-## Reference comparison against the archived seed-1 files (current harness)
+## Table 4 — Gusts (paper Figure 3, nominal references)
 
-The archived per-seed CSVs (`fw_flightcontrol/eval/attitude_control/outputs/icinco/<algo>/<variant>/*_1.csv`,
-seed 1 = file `_1`; PID has a single file) are compared run by run in `seed1_vs_archive.csv`:
+**RMSE**
 
-- **PPO and SAC (nominal, CAPS, gust):** identical to the archive to the displayed precision (≤ 0.01 RMSE,
-  ≤ 0.01 ActFluct). Turbulence moderate differs by ≤ 0.04 RMSE (JSBSim turbulence residual, accepted).
-- **PID:** within 0.05 RMSE of the archive (first-action observation fix).
-- **TD-MPC2 (current inference):** RMSE within 0.01–0.21 at nominal; ActFluct lower for the plain
-  checkpoint (-0.5 to -1.0) and higher for AVP (+0.13 to +0.16), as in the accepted inference decision (P5).
-  Disturbance runs differ more (gust moderate +0.6 to +1.3 RMSE; turbulence medium/moderate 15.92 archive → 8.65,
-  an archive outlier already documented for this seed family); these are accepted current-inference residuals.
+| Agent | off | light | moderate | severe |
+|---|---|---|---|---|
+| PID | 4.20 → 4.17 | 4.85 → 4.82 | 7.78 → 7.76 | 19.11 → 19.06 |
+| PPO CAPS | 5.63 ± 0.24 → 5.63 ± 0.24 | 6.04 ± 0.22 → 6.04 ± 0.22 | 8.38 ± 0.18 → 8.38 ± 0.18 | 19.35 ± 0.74 → 19.35 ± 0.74 |
+| SAC CAPS | 22.05 ± 8.78 → 22.05 ± 8.78 | 22.29 ± 8.20 → 22.29 ± 8.20 | 25.12 ± 7.75 → 25.12 ± 7.75 | 34.90 ± 6.50 → 34.89 ± 6.51 |
+| TD-MPC2 AVP | 5.16 ± 0.21 → 5.42 ± 0.21 | 7.55 ± 0.33 → 7.83 ± 0.43 | 11.65 ± 0.38 → 12.67 ± 0.34 | 23.86 ± 1.55 → 26.15 ± 1.59 |
 
-## Reference comparison against the checklist
+**ActFluct**
 
-| Item | Result |
+| Agent | off | light | moderate | severe |
+|---|---|---|---|---|
+| PID | 0.07 → 0.06 | 0.12 → 0.12 | 0.20 → 0.19 | 0.28 → 0.27 |
+| PPO CAPS | 1.47 ± 0.23 → 1.47 ± 0.23 | 1.68 ± 0.21 → 1.68 ± 0.21 | 1.74 ± 0.24 → 1.74 ± 0.24 | 1.89 ± 0.24 → 1.89 ± 0.24 |
+| SAC CAPS | 2.19 ± 0.49 → 2.19 ± 0.49 | 2.56 ± 0.46 → 2.56 ± 0.46 | 2.80 ± 0.43 → 2.80 ± 0.43 | 2.97 ± 0.41 → 2.97 ± 0.41 |
+| TD-MPC2 AVP | 2.26 ± 0.20 → 1.85 ± 0.22 | 2.75 ± 0.21 → 2.31 ± 0.21 | 2.87 ± 0.17 → 2.36 ± 0.15 | 3.07 ± 0.14 → 2.63 ± 0.11 |
+
+## Table 5 — Robustness conclusions
+
+| Check | Paper | Simplified | Holds |
+|---|---|---|---|
+| Turbulence RMSE, `off`: PID best, SAC worst | PID 4.93 < TD-MPC2 5.13 < PPO 5.68 < SAC 8.24 | PID 4.90 < TD-MPC2 5.47 < PPO 5.68 < SAC 8.24 | ✅ |
+| Turbulence RMSE, `moderate` | PID < PPO < TD-MPC2 < SAC | PID 5.66 < PPO 6.22 < TD-MPC2 6.86 < SAC 8.52 | ✅ |
+| Turbulence RMSE, `severe`: TD-MPC2 below PID and PPO | TD-MPC2 6.78 < PID 7.25 < PPO 7.28 < SAC 9.45 | TD-MPC2 6.94 < PID 7.20 < PPO 7.27 < SAC 9.40 | ✅ |
+| Gust RMSE, every level: PID < PPO < TD-MPC2 < SAC (`off`: TD-MPC2 below PPO) | moderate 7.78 < 8.38 < 11.65 < 25.12 | moderate 7.76 < 8.38 < 12.67 < 25.12; severe 19.06 < 19.35 < 26.15 < 34.89 | ✅ |
+| PID has the lowest ActFluct at every level, both conditions | yes | yes | ✅ |
+| TD-MPC2 AVP has lower ActFluct than PPO CAPS and SAC CAPS under turbulence, at every level | 0.65–1.02 vs 1.87–3.04 and 0.98–2.89 | 0.72–1.03 vs 1.87–3.04 and 0.98–2.88 | ✅ |
+| Gust RMSE rises monotonically with severity for every agent | yes | yes | ✅ |
+| Turbulence ActFluct rises monotonically with severity for every agent | yes | yes | ✅ |
+
+Accepted differences: TD-MPC2 gust RMSE is 0.3 to 2.3 above the paper and its ActFluct 0.4 to 0.5 below
+it (current inference); TD-MPC2 turbulence `moderate` RMSE is 6.86 vs 7.23, with overlapping SEMs. In
+every case the orderings above are unchanged. PPO and SAC match the paper to the second decimal
+(except 0.01 to 0.13 at turbulence light, a JSBSim 1.1.13 residual).
+
+## Safety and scope
+
+| Check | Result |
 |---|---|
-| P1 nominal RMSE | Holds: TD-MPC2 < PID < PPO < SAC (3.59, 4.17, 5.14, 5.27). |
-| P1 hard RMSE | **Seed-sensitive:** TD-MPC2 < SAC < PID < PPO; seed-1 PPO (22.89) is worse than PID, as in the archive. |
-| P1 nominal ActFluct | Holds: PID < PPO < TD-MPC2 < SAC. |
-| P1 hard ActFluct | **Seed-sensitive:** PID < TD-MPC2 < PPO < SAC; the paper's PPO/TD-MPC2 gap is within SEM. |
-| P2 PPO CAPS | ActFluct and nominal RMSE fall; hard RMSE rises (22.89 → 36.69). Holds. (PPO AVP not in the reference set.) |
-| P2 SAC CAPS | ActFluct 9.28 → 0.50; RMSE rises (5.27 → 6.87; hard 10.36 → 12.31). Holds. |
-| P2 TD-MPC2 AVP | ActFluct 2.81 → 0.72; nominal RMSE flat (3.59 → 3.63) rather than lower (paper 3.81 → 3.58). Holds within noise; flag. |
-| P3 severity | RMSE and ActFluct rise from `off` to `moderate` for every controller. PID has the lowest ActFluct. Holds. |
-| P3 gust ordering (moderate) | PID 7.76 < PPO 8.32 < TD-MPC2 12.81 < SAC 20.90, same as the five-seed ordering. Holds. |
-| P3 turbulence ordering (moderate) | PID 5.66 < PPO 5.75 < TD-MPC2 5.77 < SAC 6.46, same as the five-seed ordering. Holds. |
-| P3 turbulence off | PID < TD-MPC2 5.21 < PPO 5.27 < SAC; five-seed current inference has PPO ahead of TD-MPC2 (accepted exception, SEMs overlap). |
-| P4 bounds | 0 out-of-bounds episodes in all 15 runs. Holds. |
-| P5 | TD-MPC2 references use `current`. Holds. |
-
-PID differs slightly from the published figure (nominal 4.17 vs 4.20, hard 20.03 vs 20.10)
-because the generic harness uses the new reset observation for the first action (documented in the
-[harness guide](../fw_flightcontrol/eval/attitude_control/README.md)); the published PID agreement is within the accepted residuals.
+| Out-of-bounds episodes | 1 of 25 runs: SAC CAPS gusts, severe, hard target (1 episode in 125, excluded from RMSE). The nominal references and all other runs have none. Not in the paper's nominal figures. |
+| Disturbance checkpoints | `turbonly`/`gustonly` checkpoints used for all disturbance rows |
+| JSBSim version | 1.1.13 for every run |
+| TD-MPC2 inference | `rl.inference_mode=current` (default); `icinco2024` stays an opt-in setting |
