@@ -37,10 +37,7 @@
 | Report | Contents |
 |---|---|
 | [ICINCO results, five seeds](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md) | Nominal, action-regulation and disturbance results; author decisions |
-| [PPO seed-1 drift](./reports/2026-10-30_icinco_ppo_seed1_drift_diagnosis.md) | Why current code drifted, the `icinco2024` profile, June 12, 2024 source check |
-| [PPO training](./reports/2026-11-03_icinco_ppo_training.md) | CPU vs CUDA inference, fresh seed-1 training, trainer repairs |
-| [Conclusions checklist](./icinco_conclusions_checklist.md) | Phase 1b acceptance gate and seed-1 references |
-| [TD-MPC2 inference ablation](./reports/2026-11-04_icinco_tdmpc2_inference_ablation.md) | Inference differences, opt-in mode and training assessment |
+| [Conclusions checklist](./icinco_conclusions_checklist.md) | Phase 1b acceptance gate: paper → simplified harness tables |
 
 ## Run the validated slice
 
@@ -210,7 +207,8 @@ The historical validation results remain in
   Historical training records also include model and TensorBoard curves. Distribution metadata
   is separate: in `fw-310` NumPy imports as 2.2.6 but metadata says 1.24.4.
 - **`runs/` is Git-ignored**; run paths in reports are local. Tracked:
-  reports, [`ppo_diagnosis.csv`](./ppo_diagnosis.csv), [TD-MPC2 ablation](./tdmpc2_inference_ablation.csv),
+  the [five-seed report](./reports/2026-11-05_icinco_phase1_nominal_five_seeds.md),
+  the [conclusions checklist](./icinco_conclusions_checklist.md),
   [disturbance aggregates](./icinco_disturbance_aggregates.csv) and
   [historical-inference per-seed results](./tdmpc2_disturbance_historical_inference.csv).
   Legacy evaluators do not export full raw trajectories.
@@ -238,6 +236,3 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.:../FW-JSBGym /opt/anaconda3/envs/fw-310/b
 (cd ../FW-JSBGym && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.:../FW-FlightControl \
     /opt/anaconda3/envs/fw-310/bin/python -m unittest discover -s tests)
 ```
-
-For the unmodified June 12, 2024 source, see the
-[historical replay](./reports/2026-10-30_icinco_ppo_seed1_drift_diagnosis.md#evidence-and-replay).
